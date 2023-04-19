@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from jax import grad, hessian
 from jax import vmap, jit
 import jax.ops as jop
-from utilities.domains import *
+from SolvingRoughPDEs.utilities.domain import *
 from functools import partial
 import time
 import numpy as np
@@ -12,18 +12,42 @@ import jax.scipy as jsp
 config.update("jax_enable_x64", True)
 np.set_printoptions(precision=20)
 
-class NonlinearElliptic(object):
-    # the equation os -Delta u  = f,
-    # where f = \sum_{j=1}^m j^\alpha, \xi_j \phi_j(x), where \sqrt{2}\sin(j\pi x)
-    def __init__(self, kernel, domain, alpha, m, N):
+class Poisson(object):
+    """
+    solve the equation os -Delta u  = f,
+    where f = \sum_{j=1}^m j^\alpha, \xi_j \phi_j(x), where \sqrt{2}\sin(j\pi x)
+    """
+
+    def __init__(self, kernel, domain, alpha, m, N, s, gamma):
+        """
+        Input:
+
+        kernel: object
+            the kernel which generates the RKHS that we find the solution u
+        domain: object
+            the domain of the problem
+        alpha:  real number
+            the power in the definition of the function f
+        m:      positive integer
+            the number of series truncated for the function f
+        N:      positive integer
+            2 * N is the number of eigenfunctions
+        s:      real number
+            the order of the function space H^s, which represents the function space of the rough data
+        gamma:   positive real number
+            the regularization parameter in front of the RKHS norm of u
+        """
+
         self.kernel = kernel
         self.domain = domain
         self.alpha = alpha
         self.m = m
         self.sample_f(m)
         self.N = N
+        self.s = s
         self.gauss_samples, self.gauss_weights = np.polynomial.legendre.leggauss(80)
-        self.gp_size = len(self.gauss_samples) # the number of gauss quadrature points
+        self.Q = len(self.gauss_samples) # the number of gauss quadrature points
+        self.gamma = gamma
 
     def sampling(self, cfg):
         self.samples = self.domain.sampling(cfg.M, cfg.M_Omega)
@@ -35,9 +59,28 @@ class NonlinearElliptic(object):
         self.fxi = jnp.array(np.random.normal(0, 1, m))
 
     def prepare_data(self):
-        # compute the values of f in the interior
-        self.fxomega = vmap(self.f)(self.samples[:self.M_Omega])
         self.gbdr = np.zeros(self.M - self.M_Omega)
+
+        eigen_func1 = lambda _i, _q, _wq: jnp.sin(_i * jnp.pi * _q) * _wq
+        eigen_func1 = vmap(eigen_func1, in_axes=(None, 0, 0))
+        eigen_func1 = vmap(eigen_func1, in_axes=(0, None, None))
+
+        eigen_func2 = lambda _i, _q, _wq: jnp.cos(_i * jnp.pi * _q) * _wq
+        eigen_func2 = vmap(eigen_func2, in_axes=(None, 0, 0))
+        eigen_func2 = vmap(eigen_func2, in_axes=(0, None, None))
+
+        scalers = jnp.array(jnp.arange(0, N) + 1)
+        eigen_func1_vals = eigen_func1(scalers, self.gauss_samples, self.gauss_weights)
+        eigen_func2_vals = eigen_func2(scalers, self.gauss_samples, self.gauss_weights)
+
+        eigen_func_vals = jnp.concatenate((eigen_func1_vals, eigen_func2_vals), axis=0)
+
+        fs = vmap(self.f)(self.gauss_samples)
+
+        self.fs = jnp.dot(eigen_func_vals, fs)
+
+        lbdas =  (jnp.array(jnp.arange(0, self.N) + 1) * jnp.pi) ** 2
+        self.eigen_vals = jnp.concatenate((lbdas, lbdas))
 
     def u(self, x):
         pass
@@ -48,34 +91,41 @@ class NonlinearElliptic(object):
         return jnp.sum(components)
 
     def loss(self, z):
-        zz = jnp.append(self.alpha * (z ** self.m) - self.fxomega, z)
-        zz = jnp.append(zz, self.gbdr)
+        z1 = z[:self.M_Omega]
+        z2 = z[self.M_Omega:]
+
+        zz = jnp.append(z1, self.gbdr)
+        zz = jnp.append(zz, z2)
         zz = jnp.linalg.solve(self.L, zz)
-        return jnp.dot(zz, zz)
+        return self.gamma * jnp.dot(zz, zz) + jnp.sum((z + self.fs)**2 * self.eigen_vals ** (-self.s))
 
     def grad_loss(self, z):
         return grad(self.loss)(z)
 
     def GN_loss(self, z, zold):
-        zz = jnp.append(self.alpha * self.m * (zold**(self.m - 1)) * z - self.fxomega, z)
-        zz = jnp.append(zz, self.gbdr)
+        z1 = z[:self.M_Omega]
+        z2 = z[self.M_Omega:]
+        zz = jnp.append(z1, self.gbdr)
+        zz = jnp.append(zz, z2)
         zz = jnp.linalg.solve(self.L, zz)
-        return jnp.dot(zz, zz)
+        return self.gamma * jnp.dot(zz, zz) + jnp.sum((z + self.fs) ** 2 * self.eigen_vals ** (-self.s))
 
     def Hessian_GN(self, z, zold):
         return hessian(self.GN_loss)(z, zold)
 
     def build_gram(self, nugget = 1e-8):
-        theta = self.build_theta(self.samples, self.M, self.M_Omega)
-        nuggets = self.build_nuggets(theta, self.M, self.M_Omega)
+        theta = self.build_theta(self.samples, self.M, self.M_Omega, self.N, self.gauss_samples, self.Q, self.gauss_weights)
+        nuggets = self.build_nuggets(theta, self.M, self.Q)
         self.gram = theta + nugget * nuggets
+
+    def gram_Cholesky(self):
+        self.L = jnp.linalg.cholesky(self.gram)
 
     def train(self, cfg):
         error = 1
         iter = 0
         # set the initial value of z
-        #zl = np.zeros(self.M_Omega)
-        zl = np.random.rand(self.M_Omega)
+        zl = np.random.rand(self.M_Omega + self.N)
 
         self.gram_Cholesky()
 
@@ -98,10 +148,14 @@ class NonlinearElliptic(object):
 
             iter = iter + 1
 
-        z2 = self.alpha * (zl ** self.m) - self.fxomega
-        z = np.concatenate((z2, zl, self.gbdr))
+        z1 = zl[:self.M_Omega]
+        z2 = zl[self.M_Omega:]
 
-        w = jnp.linalg.solve(jnp.transpose(self.L), jnp.linalg.solve(self.L, z))
+        zz = jnp.append(z1, self.gbdr)
+        zz = jnp.append(zz, z2)
+        zz = jnp.linalg.solve(self.L, zz)
+
+        w = jnp.linalg.solve(jnp.transpose(self.L), jnp.linalg.solve(self.L, zz))
 
         self.num_iter = iter
         self.loss_hist = loss_hist
@@ -109,14 +163,17 @@ class NonlinearElliptic(object):
         return w
 
 
-    # build theta
-    # x: the sample points
-    # M: the number of points, including those on the boundary
-    # M_Omega: the number of points int the interior
-    # N: 2 * N is the number of eigenfunctions used, each eivenfunction is either sin(i\pi x) or cos(i\pi x)
-    # q: the Gauss-quadrature points
-    # Q: the number of Gauss-quadrature points
-    def build_theta(self, x, M, M_Omega, N, q, Q):
+    def build_theta(self, x, M, M_Omega, N, q, Q, weights):
+        """
+        Input:
+
+        x: the sample points
+        M: the number of points, including those on the boundary
+        M_Omega: the number of points int the interior
+        N: 2 * N is the number of eigenfunctions used, each eivenfunction is either sin(i\pi x) or cos(i\pi x)
+        q: the Gauss-quadrature points
+        Q: the number of Gauss-quadrature points
+        """
         theta = jnp.zeros((M + 2 * N, M + 2 * N))
 
         x0 = np.reshape(x, (M, 1))
@@ -142,28 +199,53 @@ class NonlinearElliptic(object):
         val = vmap(lambda _x, _q: self.kernel.Delta_y_kappa(_x, _q))(x0q0v, x0q0h)
         mtx = np.reshape(val, (M, Q))
 
-        eigen_func1 = lambda _q, _i: jnp.sin(_i * jnp.pi * _q)
-        eigen_func1 = vmap(eigen_func1, in_axes=(None, 0))
-        eigen_func1 = vmap(eigen_func1, in_axes=(0, None))
+        eigen_func1 = lambda _q, _wq, _i: jnp.sin(_i * jnp.pi * _q) * _wq
+        eigen_func1 = vmap(eigen_func1, in_axes=(None, None, 0))
+        eigen_func1 = vmap(eigen_func1, in_axes=(0, 0, None))
 
-        eigen_func2 = lambda _q, _i: jnp.sin(_i * jnp.pi * _q)
-        eigen_func2 = vmap(eigen_func2, in_axes=(None, 0))
-        eigen_func2 = vmap(eigen_func2, in_axes=(0, None))
+        eigen_func2 = lambda _q, _wq, _i: jnp.cos(_i * jnp.pi * _q) * _wq
+        eigen_func2 = vmap(eigen_func2, in_axes=(None, None, 0))
+        eigen_func2 = vmap(eigen_func2, in_axes=(0, 0, None))
 
         scalers = jnp.array(jnp.arange(0, N) + 1)
-        eigen_func1_vals = eigen_func1(q, scalers)
-        eigen_func2_vals = eigen_func2(q, scalers)
+        eigen_func1_vals = eigen_func1(q, weights, scalers)
+        eigen_func2_vals = eigen_func2(q, weights, scalers)
 
         eigen_func_vals = jnp.concatenate((eigen_func1_vals, eigen_func2_vals), axis=1)
+
+        theta = theta.at[:M, M:].set(mtx @ eigen_func_vals)
 
         # \Delta_x K(q, x)
         val = vmap(lambda _x, _q: self.kernel.Delta_x_kappa(_x, _q))(q0x0v, q0x0h)
         mtx = np.reshape(val, (Q, M))
 
+        eigen_func1 = lambda _i, _q, _wq: jnp.sin(_i * jnp.pi * _q) * _wq
+        eigen_func1 = vmap(eigen_func1, in_axes=(None, 0, 0))
+        eigen_func1 = vmap(eigen_func1, in_axes=(0, None, None))
+
+        eigen_func2 = lambda _i, _q, _wq: jnp.cos(_i * jnp.pi * _q) * _wq
+        eigen_func2 = vmap(eigen_func2, in_axes=(None, 0, 0))
+        eigen_func2 = vmap(eigen_func2, in_axes=(0, None, None))
+
+        scalers = jnp.array(jnp.arange(0, N) + 1)
+        eigen_func1_vals = eigen_func1(scalers, q, weights)
+        eigen_func2_vals = eigen_func2(scalers, q, weights)
+
+        eigen_func_vals = jnp.concatenate((eigen_func1_vals, eigen_func2_vals), axis=0)
+
+        theta = theta.at[M:, 0:M].set(eigen_func_vals @ mtx)
+
+
         # \Delta_x \Delta_y K(q, q)
         val = vmap(lambda _qx, _qy: self.kernel.Delta_y_kappa(_qx, _qy))(q0q0v, q0q0h)
         mtx = np.reshape(val, (Q, Q))
 
+        func = (lambda ar, ac: np.dot(ar, np.dot(mtx, ac)))
+        func = (vmap(func, in_axes=(None, 0)))
+        func = jit(vmap(func, in_axes=(0, None)))
+        tmp = func(eigen_func_vals, eigen_func_vals)
+
+        theta = theta.at[M:, M:].set(tmp)
         return theta
 
     # build Nuggets
@@ -175,36 +257,44 @@ class NonlinearElliptic(object):
         r = np.diag(r_diag[0])
         return r
 
-    def resampling(self, nx):
+    def fit(self, nx):
         x = self.samples
-        xint0 = np.reshape(x[:self.M_Omega, 0], (self.M_Omega, 1))
-        xint1 = np.reshape(x[:self.M_Omega, 1], (self.M_Omega, 1))
-        x0 = np.reshape(x[:, 0], (self.M, 1))
-        x1 = np.reshape(x[:, 1], (self.M, 1))
+        xint0 = np.reshape(x[:self.M_Omega], (self.M_Omega, 1))
+        x0 = np.reshape(x, (self.M, 1))
 
         nxl = len(nx)
-        nx0 = np.reshape(nx[:, 0], (nxl, 1))
-        nx1 = np.reshape(nx[:, 1], (nxl, 1))
-        # for K(x,x)
-        xx0v = jnp.tile(nx0, self.M).flatten()
-        xx0h = jnp.tile(np.transpose(x0), (nxl, 1)).flatten()
-        xx1v = jnp.tile(nx1, self.M).flatten()
-        xx1h = jnp.tile(np.transpose(x1), (nxl, 1)).flatten()
+        nx0 = np.reshape(nx, (nxl, 1))
+        nxx0v = jnp.tile(nx0, self.M).flatten()
+        nxx0h = jnp.tile(np.transpose(x0), (nxl, 1)).flatten()
 
-        # for Delta K(x, x)
-        xxint0v = jnp.tile(nx0, self.M_Omega).flatten()
-        xxint0h = jnp.tile(jnp.transpose(xint0), (nxl, 1)).flatten()
-        xxint1v = jnp.tile(nx1, self.M_Omega).flatten()
-        xxint1h = jnp.tile(jnp.transpose(xint1), (nxl, 1)).flatten()
+        q0 = np.reshape(self.gauss_samples, (self.Q, 1))
 
-        mtx = np.zeros((nxl, self.M + self.M_Omega))
-        # K(x,x)
-        val0 = vmap(lambda x1, x2, y1, y2: self.kernel.kappa(x1, x2, y1, y2))(xx0v, xx1v, xx0h, xx1h)
-        mtx[0:nxl, self.M_Omega:self.M + self.M_Omega] = np.reshape(val0, (nxl, self.M))
+        nx0q0v = jnp.tile(nx0, self.Q).flatten()
+        nx0q0h = jnp.tile(np.transpose(q0), (nxl, 1)).flatten()
 
-        # Delta K(x,x)
-        val1 = vmap(lambda x1, x2, y1, y2: self.kernel.Delta_x_kappa(x1, x2, y1, y2))(xxint0v, xxint1v, xxint0h, xxint1h)
-        mtx[0:nxl, 0:self.M_Omega] = np.reshape(val1, (nxl, self.M_Omega))
+        mtx = np.zeros((nxl, self.M + self.N))
+
+        val0 = vmap(lambda _x, _y: self.kernel.kappa(_x, _y))(nxx0v, nxx0h)
+        mtx[0:nxl, :self.M] = np.reshape(val0, (nxl, self.M))
+
+        val1 = vmap(lambda _x, _y: self.kernel.Delta_y_kappa(_x, _y))(nx0q0v, nx0q0h)
+        tmp = np.reshape(val1, (nxl, self.Q))
+
+        eigen_func1 = lambda _q, _wq, _i: jnp.sin(_i * jnp.pi * _q) * _wq
+        eigen_func1 = vmap(eigen_func1, in_axes=(None, None, 0))
+        eigen_func1 = vmap(eigen_func1, in_axes=(0, 0, None))
+
+        eigen_func2 = lambda _q, _wq, _i: jnp.cos(_i * jnp.pi * _q) * _wq
+        eigen_func2 = vmap(eigen_func2, in_axes=(None, None, 0))
+        eigen_func2 = vmap(eigen_func2, in_axes=(0, 0, None))
+
+        scalers = jnp.array(jnp.arange(0, N) + 1)
+        eigen_func1_vals = eigen_func1(self.gauss_samples, self.gauss_weights, scalers)
+        eigen_func2_vals = eigen_func2(self.gauss_samples, self.gauss_weights, scalers)
+
+        eigen_func_vals = jnp.concatenate((eigen_func1_vals, eigen_func2_vals), axis=1)
+
+        mtx[:nxl, self.M:].set(tmp @ eigen_func_vals)
 
         u = mtx.dot(self.weights)
         return u
