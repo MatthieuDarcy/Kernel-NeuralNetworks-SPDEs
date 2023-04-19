@@ -1,6 +1,26 @@
 import jax.numpy as jnp
 from jax import grad
 
+class Matern_Kernel_1D(object):
+    def __init__(self, sigma):
+        self.sigma = sigma
+
+    def kappa(self, x, y):
+        d = jnp.sqrt((x - y) ** 2)
+        # return (1 + jnp.sqrt(3) * d / self.sigma) * jnp.exp(-jnp.sqrt(3) * d / self.sigma)
+        return (1 + jnp.sqrt(5) * d / self.sigma + 5 * d ** 2 / (3 * self.sigma**2)) * jnp.exp(-jnp.sqrt(5) * d / self.sigma)
+
+    def Delta_x_kappa(self, x, y):
+        val = grad(grad(self.kappa, 0), 0)(x, y)
+        return val
+
+    def Delta_y_kappa(self, x, y):
+        val = grad(grad(self.kappa, 1), 1)(x, y)
+        return val
+
+    def Delta_x_Delta_y_kappa(self, x, y):
+        val = grad(grad(self.Delta_x_kappa, 1), 1)(x, y)
+        return val
 
 class Gaussian_Kernel_1D(object):
     def __init__(self, sigma):
@@ -18,6 +38,10 @@ class Gaussian_Kernel_1D(object):
 
     def Delta_x_kappa(self, x, y):
         val = grad(grad(self.kappa, 0), 0)(x, y)
+        return val
+
+    def Delta_y_kappa(self, x, y):
+        val = grad(grad(self.kappa, 1), 1)(x, y)
         return val
 
     def Delta_x_Delta_y_kappa(self, x, y):

@@ -15,9 +15,8 @@ np.set_printoptions(precision=20)
 class Poisson(object):
     """
     solve the equation os -Delta u  = f,
-    where f = \sum_{j=1}^m j^\alpha, \xi_j \phi_j(x), where \sqrt{2}\sin(j\pi x)
+    where f = \\sum_{j=1}^m j^\\alpha, \\xi_j \\phi_j(x), where \\sqrt{2}\\sin(j\\pi x)
     """
-
     def __init__(self, kernel, domain, alpha, m, N, s, gamma):
         """
         Input:
@@ -69,7 +68,7 @@ class Poisson(object):
         eigen_func2 = vmap(eigen_func2, in_axes=(None, 0, 0))
         eigen_func2 = vmap(eigen_func2, in_axes=(0, None, None))
 
-        scalers = jnp.array(jnp.arange(0, N) + 1)
+        scalers = jnp.array(jnp.arange(0, self.N) + 1)
         eigen_func1_vals = eigen_func1(scalers, self.gauss_samples, self.gauss_weights)
         eigen_func2_vals = eigen_func2(scalers, self.gauss_samples, self.gauss_weights)
 
@@ -83,6 +82,11 @@ class Poisson(object):
         self.eigen_vals = jnp.concatenate((lbdas, lbdas))
 
     def u(self, x):
+        scalers = jnp.array(jnp.arange(0, self.m) + 1)
+        components = vmap(lambda j, xi_j: j ** self.alpha * xi_j * jnp.sqrt(2) * jnp.sin(j * jnp.pi * x) / (j ** 2 * jnp.pi ** 2))(scalers, self.fxi)
+        return jnp.sum(components)
+
+    def udagger(self, x):
         pass
 
     def f(self, x):
@@ -97,7 +101,7 @@ class Poisson(object):
         zz = jnp.append(z1, self.gbdr)
         zz = jnp.append(zz, z2)
         zz = jnp.linalg.solve(self.L, zz)
-        return self.gamma * jnp.dot(zz, zz) + jnp.sum((z + self.fs)**2 * self.eigen_vals ** (-self.s))
+        return self.gamma * jnp.dot(zz, zz) + jnp.sum((z2 + self.fs)**2 * self.eigen_vals ** (-self.s))
 
     def grad_loss(self, z):
         return grad(self.loss)(z)
@@ -108,14 +112,14 @@ class Poisson(object):
         zz = jnp.append(z1, self.gbdr)
         zz = jnp.append(zz, z2)
         zz = jnp.linalg.solve(self.L, zz)
-        return self.gamma * jnp.dot(zz, zz) + jnp.sum((z + self.fs) ** 2 * self.eigen_vals ** (-self.s))
+        return self.gamma * jnp.dot(zz, zz) + jnp.sum((z2 + self.fs) ** 2 * self.eigen_vals ** (-self.s))
 
     def Hessian_GN(self, z, zold):
         return hessian(self.GN_loss)(z, zold)
 
     def build_gram(self, nugget = 1e-8):
         theta = self.build_theta(self.samples, self.M, self.M_Omega, self.N, self.gauss_samples, self.Q, self.gauss_weights)
-        nuggets = self.build_nuggets(theta, self.M, self.Q)
+        nuggets = self.build_nuggets(theta, self.M, self.N)
         self.gram = theta + nugget * nuggets
 
     def gram_Cholesky(self):
@@ -125,7 +129,7 @@ class Poisson(object):
         error = 1
         iter = 0
         # set the initial value of z
-        zl = np.random.rand(self.M_Omega + self.N)
+        zl = np.random.rand(self.M_Omega + 2 * self.N)
 
         self.gram_Cholesky()
 
@@ -164,7 +168,7 @@ class Poisson(object):
 
 
     def build_theta(self, x, M, M_Omega, N, q, Q, weights):
-        """
+        '''
         Input:
 
         x: the sample points
@@ -173,7 +177,7 @@ class Poisson(object):
         N: 2 * N is the number of eigenfunctions used, each eivenfunction is either sin(i\pi x) or cos(i\pi x)
         q: the Gauss-quadrature points
         Q: the number of Gauss-quadrature points
-        """
+        '''
         theta = jnp.zeros((M + 2 * N, M + 2 * N))
 
         x0 = np.reshape(x, (M, 1))
@@ -216,7 +220,7 @@ class Poisson(object):
         theta = theta.at[:M, M:].set(mtx @ eigen_func_vals)
 
         # \Delta_x K(q, x)
-        val = vmap(lambda _x, _q: self.kernel.Delta_x_kappa(_x, _q))(q0x0v, q0x0h)
+        val = vmap(lambda _q, _x: self.kernel.Delta_x_kappa(_q, _x))(q0x0v, q0x0h)
         mtx = np.reshape(val, (Q, M))
 
         eigen_func1 = lambda _i, _q, _wq: jnp.sin(_i * jnp.pi * _q) * _wq
@@ -237,29 +241,28 @@ class Poisson(object):
 
 
         # \Delta_x \Delta_y K(q, q)
-        val = vmap(lambda _qx, _qy: self.kernel.Delta_y_kappa(_qx, _qy))(q0q0v, q0q0h)
-        mtx = np.reshape(val, (Q, Q))
+        val = vmap(lambda _qx, _qy: self.kernel.Delta_x_Delta_y_kappa(_qx, _qy))(q0q0v, q0q0h)
+        mtx = jnp.reshape(val, (Q, Q))
 
-        func = (lambda ar, ac: np.dot(ar, np.dot(mtx, ac)))
+        func = (lambda ar, ac: jnp.dot(ar, jnp.dot(mtx, ac)))
         func = (vmap(func, in_axes=(None, 0)))
-        func = jit(vmap(func, in_axes=(0, None)))
+        func = (vmap(func, in_axes=(0, None)))
         tmp = func(eigen_func_vals, eigen_func_vals)
 
         theta = theta.at[M:, M:].set(tmp)
         return theta
 
     # build Nuggets
-    def build_nuggets(self, theta, M, Q):
+    def build_nuggets(self, theta, M, N):
         trace11 = np.trace(theta[0:M, 0:M])
         trace22 = np.trace(theta[M:, M:])
         ratio = trace22 / trace11
-        r_diag = np.concatenate(np.ones((1, M)), ratio * np.ones((1, Q)), axis=1)
+        r_diag = np.concatenate((np.ones((1, M)), ratio * np.ones((1, 2 * N))), axis=1)
         r = np.diag(r_diag[0])
         return r
 
     def fit(self, nx):
         x = self.samples
-        xint0 = np.reshape(x[:self.M_Omega], (self.M_Omega, 1))
         x0 = np.reshape(x, (self.M, 1))
 
         nxl = len(nx)
@@ -272,7 +275,7 @@ class Poisson(object):
         nx0q0v = jnp.tile(nx0, self.Q).flatten()
         nx0q0h = jnp.tile(np.transpose(q0), (nxl, 1)).flatten()
 
-        mtx = np.zeros((nxl, self.M + self.N))
+        mtx = np.zeros((nxl, self.M + 2 * self.N))
 
         val0 = vmap(lambda _x, _y: self.kernel.kappa(_x, _y))(nxx0v, nxx0h)
         mtx[0:nxl, :self.M] = np.reshape(val0, (nxl, self.M))
@@ -288,13 +291,13 @@ class Poisson(object):
         eigen_func2 = vmap(eigen_func2, in_axes=(None, None, 0))
         eigen_func2 = vmap(eigen_func2, in_axes=(0, 0, None))
 
-        scalers = jnp.array(jnp.arange(0, N) + 1)
+        scalers = jnp.array(jnp.arange(0, self.N) + 1)
         eigen_func1_vals = eigen_func1(self.gauss_samples, self.gauss_weights, scalers)
         eigen_func2_vals = eigen_func2(self.gauss_samples, self.gauss_weights, scalers)
 
         eigen_func_vals = jnp.concatenate((eigen_func1_vals, eigen_func2_vals), axis=1)
 
-        mtx[:nxl, self.M:].set(tmp @ eigen_func_vals)
+        mtx[:nxl, self.M:] = tmp @ eigen_func_vals
 
         u = mtx.dot(self.weights)
         return u

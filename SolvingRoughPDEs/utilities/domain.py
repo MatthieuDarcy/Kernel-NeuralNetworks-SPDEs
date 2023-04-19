@@ -5,6 +5,19 @@ import typing
 import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
 
+class Interval(object):
+    def __init__(self, x1l, x1r):
+        self.x1l = x1l
+        self.x1r = x1r
+
+    def random_seed(self, s):
+        np.random.seed(s)
+
+    def sampling(self, M, M_Omega):
+        int_points = np.random.uniform(self.x1l, self.x1r, M_Omega)
+        bdry_points = np.array([self.x1l, self.x1r])
+        points = np.concatenate((int_points, bdry_points))
+        return points
 
 class Square(object):
     def __init__(self, x1l, x1r, x2l, x2r):
