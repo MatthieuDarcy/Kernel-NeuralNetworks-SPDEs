@@ -2,6 +2,7 @@ import jax.numpy as jnp
 from jax import grad, hessian
 from jax import vmap, jit
 import jax.ops as jop
+import jax.scipy as jsp
 from SolvingRoughPDEs.utilities.domain import *
 from functools import partial
 import time
@@ -44,7 +45,9 @@ class Poisson(object):
         self.sample_f(m)
         self.N = N
         self.s = s
-        self.gauss_samples, self.gauss_weights = np.polynomial.legendre.leggauss(80)
+        self.gauss_samples, self.gauss_weights = np.polynomial.legendre.leggauss(100)
+        self.gauss_samples = (self.gauss_samples + 1) / 2
+        self.gauss_weights = self.gauss_weights / 2
         self.Q = len(self.gauss_samples) # the number of gauss quadrature points
         self.gamma = gamma
 
@@ -78,13 +81,14 @@ class Poisson(object):
 
         self.fs = jnp.dot(eigen_func_vals, fs)
 
-        lbdas =  (jnp.array(jnp.arange(0, self.N) + 1) * jnp.pi) ** 2
+        lbdas = (jnp.array(jnp.arange(0, self.N) + 1) * jnp.pi) ** 2
         self.eigen_vals = jnp.concatenate((lbdas, lbdas))
 
     def u(self, x):
         scalers = jnp.array(jnp.arange(0, self.m) + 1)
         components = vmap(lambda j, xi_j: j ** self.alpha * xi_j * jnp.sqrt(2) * jnp.sin(j * jnp.pi * x) / (j ** 2 * jnp.pi ** 2))(scalers, self.fxi)
         return jnp.sum(components)
+        # return jnp.sin(jnp.pi * x) / jnp.pi ** 2
 
     def udagger(self, x):
         pass
@@ -93,6 +97,7 @@ class Poisson(object):
         scalers = jnp.array(jnp.arange(0, self.m) + 1)
         components = vmap(lambda j, xi_j: j ** self.alpha * xi_j * jnp.sqrt(2) * jnp.sin(j * jnp.pi * x))(scalers, self.fxi)
         return jnp.sum(components)
+        #return jnp.sin(jnp.pi * x)
 
     def loss(self, z):
         z1 = z[:self.M_Omega]
@@ -100,7 +105,7 @@ class Poisson(object):
 
         zz = jnp.append(z1, self.gbdr)
         zz = jnp.append(zz, z2)
-        zz = jnp.linalg.solve(self.L, zz)
+        zz = jsp.linalg.solve_triangular(self.L, zz, lower=True)
         return self.gamma * jnp.dot(zz, zz) + jnp.sum((z2 + self.fs)**2 * self.eigen_vals ** (-self.s))
 
     def grad_loss(self, z):
@@ -111,7 +116,7 @@ class Poisson(object):
         z2 = z[self.M_Omega:]
         zz = jnp.append(z1, self.gbdr)
         zz = jnp.append(zz, z2)
-        zz = jnp.linalg.solve(self.L, zz)
+        zz = jsp.linalg.solve_triangular(self.L, zz, lower=True)
         return self.gamma * jnp.dot(zz, zz) + jnp.sum((z2 + self.fs) ** 2 * self.eigen_vals ** (-self.s))
 
     def Hessian_GN(self, z, zold):
@@ -157,9 +162,8 @@ class Poisson(object):
 
         zz = jnp.append(z1, self.gbdr)
         zz = jnp.append(zz, z2)
-        zz = jnp.linalg.solve(self.L, zz)
 
-        w = jnp.linalg.solve(jnp.transpose(self.L), jnp.linalg.solve(self.L, zz))
+        w = jsp.linalg.solve_triangular(self.L.T, jsp.linalg.solve_triangular(self.L, zz, lower=True), lower=False)
 
         self.num_iter = iter
         self.loss_hist = loss_hist
@@ -238,7 +242,6 @@ class Poisson(object):
         eigen_func_vals = jnp.concatenate((eigen_func1_vals, eigen_func2_vals), axis=0)
 
         theta = theta.at[M:, 0:M].set(eigen_func_vals @ mtx)
-
 
         # \Delta_x \Delta_y K(q, q)
         val = vmap(lambda _qx, _qy: self.kernel.Delta_x_Delta_y_kappa(_qx, _qy))(q0q0v, q0q0h)

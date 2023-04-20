@@ -13,13 +13,13 @@ config.update("jax_enable_x64", True)
 np.set_printoptions(precision=20)
 
 cfg = munch.munchify({
-    'N' : 200,
+    'N' : 30,
     'M': 402,
     'M_Omega': 400,
     'alpha': 1,
     'm': 20,
     's': 2,
-    'gamma': 1e-50,
+    'gamma': 1e-10,
     'lenghscale' : 0.1,
     'nugget': 1e-12,
     'epoch': 100,    #epoches for training latent variables
@@ -61,8 +61,8 @@ all_errors = np.abs(test_truth - u_r)
 print("The final error is {}".format(np.max(all_errors)))
 
 fig = plt.figure()
-plt.plot(xx, test_truth, 'r-.', label=r'$u^*$')
 plt.plot(xx, u_r, 'b', label=r'$u^\dagger$')
+plt.plot(xx, test_truth, 'r-.', label=r'$u^*$')
 plt.legend()
 plt.show()
 
