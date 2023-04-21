@@ -13,7 +13,7 @@ import jax.scipy as jsp
 config.update("jax_enable_x64", True)
 np.set_printoptions(precision=20)
 
-class Poisson(object):
+class Poisson1D(object):
     """
     solve the equation os -Delta u  = f,
     where f = \\sum_{j=1}^m j^\\alpha, \\xi_j \\phi_j(x), where \\sqrt{2}\\sin(j\\pi x)
@@ -131,31 +131,11 @@ class Poisson(object):
         self.L = jnp.linalg.cholesky(self.gram)
 
     def train(self, cfg):
-        error = 1
-        iter = 0
-        # set the initial value of z
-        zl = np.random.rand(self.M_Omega + 2 * self.N)
-
         self.gram_Cholesky()
 
-        loss_hist = []  # history of loss function values
-        current_loss = self.loss(zl)
-        loss_hist.append(current_loss)
-
-        while error > cfg.tol and iter < cfg.epoch:
-            coeffs = self.Hessian_GN(zl, zl)
-
-            dz = jnp.linalg.solve(coeffs, self.grad_loss(zl))
-
-            zl = zl - dz
-
-            current_loss = self.loss(zl)
-            loss_hist.append(current_loss)
-
-            error = np.linalg.norm(dz)
-            print("Epoch {}, Error {}, Loss {}".format(iter, error, current_loss))
-
-            iter = iter + 1
+        zl = np.zeros(self.M_Omega + 2 * self.N)
+        coeffs = self.Hessian_GN(zl, zl)
+        zl = jnp.linalg.solve(coeffs, -self.grad_loss(zl))
 
         z1 = zl[:self.M_Omega]
         z2 = zl[self.M_Omega:]
@@ -165,11 +145,8 @@ class Poisson(object):
 
         w = jsp.linalg.solve_triangular(self.L.T, jsp.linalg.solve_triangular(self.L, zz, lower=True), lower=False)
 
-        self.num_iter = iter
-        self.loss_hist = loss_hist
         self.weights = w
         return w
-
 
     def build_theta(self, x, M, M_Omega, N, q, Q, weights):
         '''

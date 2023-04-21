@@ -1,5 +1,5 @@
 from SolvingRoughPDEs.utilities.kernels import *
-from SolvingRoughPDEs.gp.Poisson1D import *
+from SolvingRoughPDEs.gp.NonlinearElliptic1D import *
 from SolvingRoughPDEs.utilities.domain import *
 import jax.numpy as jnp
 import numpy as np
@@ -18,13 +18,10 @@ cfg = munch.munchify({
     'M_Omega': 400,
     'alpha': 1,
     'm': 20,
-    's': 1,
-    'gamma': 1e-10,
+    's': 2,
+    'gamma': 1e-20,
     'lenghscale' : 0.1,
     'nugget': 1e-12,
-    'epoch': 100,    #epoches for training latent variables
-    'lr': 1,         #learning rate for training latent variables
-    'tol' : 10 ** (-5),  #tolerance for training latent variables
 })
 
 SMALL_SIZE = 24
@@ -44,9 +41,8 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 domain = Interval(0, 1)
 kernel = Gaussian_Kernel_1D(cfg.lenghscale)
 
-eq = Poisson1D(kernel, domain, cfg.alpha, cfg.m, cfg.N, cfg.s, cfg.gamma)
+eq = NonlinearElliptic1D(kernel, domain, cfg.alpha, cfg.m, cfg.N, cfg.s, cfg.gamma)
 eq.sampling(cfg)
-eq.build_gram(cfg.nugget)
 eq.train(cfg)
 
 N_pts = 60
