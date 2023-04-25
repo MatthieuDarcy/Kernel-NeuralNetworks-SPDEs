@@ -22,6 +22,8 @@ cfg = munch.munchify({
     'gamma': 1e-20,
     'lenghscale' : 0.1,
     'nugget': 1e-12,
+    'epoch' : 20,
+    'tol': 1e-5,
 })
 
 SMALL_SIZE = 24
