@@ -13,17 +13,18 @@ config.update("jax_enable_x64", True)
 np.set_printoptions(precision=20)
 
 cfg = munch.munchify({
-    'N' : 20,
-    'M': 402,
-    'M_Omega': 400,
+    'N' : 1000,
+    'M': 102,
+    'M_Omega': 100,
     'alpha': 1,
-    'm': 20,
-    's': 2,
-    'gamma': 1e-20,
+    'm': 1000,
+    's': 1,
+    'gamma': 1e-12,
     'lenghscale' : 0.1,
     'nugget': 1e-12,
-    'epoch' : 20,
+    'epoch' : 200,
     'tol': 1e-5,
+    'deg': 4000,
 })
 
 SMALL_SIZE = 24
@@ -43,7 +44,7 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 domain = Interval(0, 1)
 kernel = Gaussian_Kernel_1D(cfg.lenghscale)
 
-eq = NonlinearElliptic1D(kernel, domain, cfg.alpha, cfg.m, cfg.N, cfg.s, cfg.gamma)
+eq = NonlinearElliptic1D(kernel, domain, cfg.alpha, cfg.m, cfg.N, cfg.s, cfg.gamma, cfg.deg)
 eq.sampling(cfg)
 eq.train(cfg)
 

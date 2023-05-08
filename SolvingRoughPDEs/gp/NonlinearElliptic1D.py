@@ -18,7 +18,7 @@ class NonlinearElliptic1D(object):
     solve the equation os -Delta u + u^3 = f,
     where u = \\sum_{j=1}^m j^\\alpha, \\xi_j \\phi_j(x), where \\sqrt{2}\\sin(j\\pi x)
     """
-    def __init__(self, kernel, domain, alpha, m, N, s, gamma):
+    def __init__(self, kernel, domain, alpha, m, N, s, gamma, deg):
         """
         Input:
 
@@ -45,7 +45,7 @@ class NonlinearElliptic1D(object):
         self.sample_f(m)
         self.N = N
         self.s = s
-        self.gauss_samples, self.gauss_weights = np.polynomial.legendre.leggauss(100)
+        self.gauss_samples, self.gauss_weights = np.polynomial.legendre.leggauss(deg)
         self.gauss_samples = (self.gauss_samples + 1) / 2
         self.gauss_weights = self.gauss_weights / 2
         self.Q = len(self.gauss_samples) # the number of gauss quadrature points
