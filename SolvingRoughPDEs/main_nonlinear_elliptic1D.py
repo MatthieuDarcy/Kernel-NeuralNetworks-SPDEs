@@ -13,15 +13,15 @@ config.update("jax_enable_x64", True)
 np.set_printoptions(precision=20)
 
 cfg = munch.munchify({
-    'N' : 1000,
+    'N' : 20,
     'M': 102,
     'M_Omega': 100,
     'alpha': 1,
-    'm': 1000,
-    's': 1,
-    'gamma': 1e-12,
-    'lenghscale' : 0.1,
-    'nugget': 1e-12,
+    'm': 20,
+    's': 3,
+    'gamma': 1e-8,
+    'lenghscale' : 0.05,
+    'nugget': 1e-8,
     'epoch' : 200,
     'tol': 1e-5,
     'deg': 4000,

@@ -1,5 +1,5 @@
 from SolvingRoughPDEs.utilities.kernels import *
-from SolvingRoughPDEs.gp.NonlinearElliptic2D_DoubleBases import *
+from SolvingRoughPDEs.gp.NonlinearElliptic2D_Iteratively import *
 from SolvingRoughPDEs.utilities.domain import *
 import jax.numpy as jnp
 import numpy as np
@@ -18,14 +18,17 @@ cfg = munch.munchify({
     'M_Omega': 24,
     'alpha': 1,
     'beta': 1,
-    'm': 3,
+    'mT' : 100,
+    'm': 5,
     's': 1,
-    'gamma': 1e-10,
-    'lenghscale' : 0.3,
+    'gamma': 1e-12,
+    'lenghscale' : 0.09,
     'nugget': 1e-12,
     'epoch' : 200,
     'tol': 1e-5,
-    'deg': 80,
+    'deg': 90,
+    'load_current': False,
+    'load_pre': True,
 })
 
 SMALL_SIZE = 24
@@ -46,8 +49,61 @@ domain = Square(0, 1, 0, 1)
 kernel = Gaussian_Kernel(cfg.lenghscale)
 
 eq = NonlinearElliptic2D(kernel, domain, cfg.alpha, cfg.beta, cfg.m, cfg.N, cfg.s, cfg.gamma, cfg.deg)
-eq.sampling(cfg)
-eq.train(cfg)
+
+u0_weights = jnp.array([])
+u0_hs = jnp.array([])
+u0_z = jnp.array([])
+
+if cfg.load_pre:
+    prefix = "./results/NonlinearElliptic2D/"
+    u_weights_filename = prefix + "u_weights_m_" + str(cfg.m-1) + ".txt"
+    u_hs_filename = prefix + "u_hs_m_" + str(cfg.m-1) + ".txt"
+    xi_filename = prefix + "xi.txt"
+    u_z_filename = prefix + "u_z_m_" + str(cfg.m-1) + ".txt"
+    samples_file = prefix + "samples.txt"
+
+    u0_weights = np.loadtxt(u_weights_filename)
+    u0_hs = np.loadtxt(u_hs_filename)
+    xi = np.loadtxt(xi_filename)
+    u_z = np.loadtxt(u_z_filename)
+    samples = np.loadtxt(samples_file)
+
+    eq.set_data(samples, cfg.M, cfg.M_Omega, xi)
+elif cfg.load_current:
+    prefix = "./results/NonlinearElliptic2D/"
+    u_weights_filename = prefix + "u_weights_m_" + str(cfg.m) + ".txt"
+    u_hs_filename = prefix + "u_hs_m_" + str(cfg.m) + ".txt"
+    xi_filename = prefix + "xi.txt"
+    u_z_filename = prefix + "u_z_m_" + str(cfg.m) + ".txt"
+    samples_file = prefix + "samples.txt"
+
+    u0_weights = np.loadtxt(u_weights_filename)
+    u0_hs = np.loadtxt(u_hs_filename)
+    xi = np.loadtxt(xi_filename)
+    u_z = np.loadtxt(u_z_filename)
+    samples = np.loadtxt(samples_file)
+
+    eq.set_data(samples, cfg.M, cfg.M_Omega, xi)
+
+else:
+    eq.sample_xi(cfg.mT)
+    eq.sampling(cfg)
+
+eq.train(cfg, u0_weights, u0_hs, u0_z)
+
+prefix = "./results/NonlinearElliptic2D/"
+u_weights_filename = prefix + "u_weights_m_" + str(cfg.m) + ".txt"
+u_hs_filename = prefix + "u_hs_m_" + str(cfg.m) + ".txt"
+xi_filename = prefix + "xi.txt"
+samples_file = prefix + "samples.txt"
+u_z_filename = prefix + "u_z_m_" + str(cfg.m) + ".txt"
+
+np.savetxt(u_weights_filename, eq.weights, delimiter='\t', fmt='%.64f')
+np.savetxt(u_hs_filename, eq.hs, delimiter='\t', fmt='%.64f')
+np.savetxt(xi_filename, eq.xi, delimiter='\t', fmt='%.64f')
+np.savetxt(samples_file, eq.samples, delimiter='\t', fmt='%.64f')
+np.savetxt(u_z_filename, eq.z, delimiter='\t', fmt='%.64f')
+
 
 N_pts = 60
 xx= jnp.linspace(0, 1, N_pts)
@@ -93,21 +149,6 @@ plt.title('Contour of errors')
 fig.colorbar(err_contourf, format=fmt)
 
 plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

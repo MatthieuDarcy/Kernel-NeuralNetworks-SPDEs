@@ -13,6 +13,11 @@ import jax.scipy as jsp
 config.update("jax_enable_x64", True)
 np.set_printoptions(precision=20)
 
+"""
+This file consider both sin and cos eigen functions, while
+NonlinearElliptic2D_Faster.py only consider sin eigen functions. 
+"""
+
 class NonlinearElliptic2D(object):
     """
     solve the equation os -Delta u + u^3 = f,
@@ -46,8 +51,7 @@ class NonlinearElliptic2D(object):
         self.alpha = alpha
         self.beta = beta
         self.mm = m ** 2
-        self.sample_f(m**2)
-        self.NN = N ** 2
+        self.NN = 2 * N ** 2
         self.s = s
         gauss_samples, gauss_weights = np.polynomial.legendre.leggauss(deg)
         gauss_samples = (gauss_samples + 1) / 2
@@ -68,15 +72,11 @@ class NonlinearElliptic2D(object):
         sXX, sYY = jnp.meshgrid(scalers, scalers, indexing='ij')
         self.u_func_indices = jnp.concatenate((jnp.reshape(sXX.flatten(), (-1, 1)), jnp.reshape(sYY.flatten(), (-1, 1))), axis=1)
 
-
-        # test_func = lambda _q0, _q1, _wq: jnp.exp(-(_q0 - 0.1)**2 - (_q1-0.1)**2)  * _wq
-        # inte = test_func(self.gauss_samples[:, 0], self.gauss_samples[:, 1], self.gauss_weights)
-        # inte = jnp.sum(inte)
-        # print(inte)
     def sampling(self, cfg):
         self.samples = self.domain.sampling(cfg.M, cfg.M_Omega)
         self.M = cfg.M
         self.M_Omega = cfg.M_Omega
+        self.sample_xi(self.mm)
         self.prepare_data()
 
     def tau(self, u):
@@ -85,7 +85,7 @@ class NonlinearElliptic2D(object):
     def dtau(self, u):
         return 3 * u ** 2
 
-    def sample_f(self, m):
+    def sample_xi(self, m):
         self.xi = np.concatenate((np.random.uniform(0, 1, (m, 1)), np.random.uniform(0, 1, (m, 1))), axis=1)
 
     def prepare_data(self):
@@ -98,13 +98,23 @@ class NonlinearElliptic2D(object):
         eigen_func1_vals = eigen_func1(self.eigen_func_indices[:, 0], self.eigen_func_indices[:, 1],
                                        self.gauss_samples[:, 0], self.gauss_samples[:, 1], self.gauss_weights)
 
-        self.eigen_func_vals = eigen_func1_vals
+        eigen_func2 = lambda _i, _j, _qi, _qj, _wq: jnp.cos(
+            _i * jnp.pi * _qi + _j * jnp.pi * _qj) * _wq
+        eigen_func2 = vmap(eigen_func2, in_axes=(None, None, 0, 0, 0))
+        eigen_func2 = vmap(eigen_func2, in_axes=(0, 0, None, None, None))
+
+        eigen_func2_vals = eigen_func2(self.eigen_func_indices[:, 0], self.eigen_func_indices[:, 1],
+                                       self.gauss_samples[:, 0], self.gauss_samples[:, 1], self.gauss_weights)
+
+        self.eigen_func_vals = jnp.concatenate((eigen_func1_vals, eigen_func2_vals), axis=0)
 
         self.fs = vmap(self.f)(self.gauss_samples[:, 0], self.gauss_samples[:, 1])
 
         evfunc = lambda i, j: (i * jnp.pi) ** 2 + (j * jnp.pi) ** 2
 
-        self.eigen_vals = evfunc(self.eigen_func_indices[:, 0], self.eigen_func_indices[:, 1])
+        eigen_vals = evfunc(self.eigen_func_indices[:, 0], self.eigen_func_indices[:, 1])
+        self.eigen_vals = jnp.concatenate((eigen_vals, eigen_vals))
+
     def u(self, x, y):
         func = lambda xi_i, xi_j, i, j: i ** self.alpha * xi_i \
                                          * j ** self.beta * xi_j * jnp.sqrt(2) * \
@@ -112,14 +122,14 @@ class NonlinearElliptic2D(object):
                                          * jnp.sin(j * jnp.pi * y)
         vals = func(self.xi[:, 0], self.xi[:, 1], self.u_func_indices[:, 0], self.u_func_indices[:, 1])
         return jnp.sum(vals)
-        #return jnp.sin(jnp.pi * x) + jnp.sin(2 * jnp.pi * y)
+        # return jnp.sin(jnp.pi * x) + jnp.sin(2 * jnp.pi * y)
 
     def f(self, x, y):
         return -grad(grad(self.u, 0), 0)(x, y) - grad(grad(self.u, 1), 1)(x, y) + self.tau(self.u(x, y))
 
     def global_loss(self, uweights, hs, L):
-        u_gauss = self.eval_u(self.gauss_samples, uweights, hs)
-        Delta_u_gauss = self.eval_Delta_u(self.gauss_samples, uweights, hs)
+        u_gauss = self.__eval_u_at_gauss_quadrature_points(uweights, hs)
+        Delta_u_gauss = self.__eval_Delta_u_at_gauss_quadrature_points(uweights, hs)
 
         udata = - Delta_u_gauss + vmap(self.tau)(u_gauss) - self.fs
         udata = jnp.dot(self.eigen_func_vals, udata)
@@ -158,6 +168,10 @@ class NonlinearElliptic2D(object):
         return hessian(self.GN_loss)(z, zold, data, L)
 
     def train(self, cfg):
+        self.__build_theta_invariants(self.samples, self.M, self.M_Omega, self.NN, self.gauss_samples, self.Q,
+                                    self.gauss_weights, self.eigen_func_indices)
+        self.__build_u_invariants()
+
         # set the initial value of z
         uk_weights = jnp.zeros(self.M + 2 * self.NN)
         uk_hs = jnp.zeros(self.Q)
@@ -175,8 +189,9 @@ class NonlinearElliptic2D(object):
 
         error = 1
         iter = 0
+
         while iter < cfg.epoch and error > cfg.tol:
-            uk_gauss = self.eval_u(self.gauss_samples, uk_weights, uk_hs)
+            uk_gauss = self.__eval_u_at_gauss_quadrature_points(uk_weights, uk_hs)
 
             uk1_hs = vmap(self.dtau)(uk_gauss)
             uk1_data = vmap(self.tau)(uk_gauss) - vmap(self.dtau)(uk_gauss) * uk_gauss - self.fs
@@ -190,8 +205,9 @@ class NonlinearElliptic2D(object):
 
             uk1_L = jnp.linalg.cholesky(uk1_gram)
 
-            zl = jnp.zeros(self.M_Omega + 2 * self.NN)
+            zl = np.zeros(self.M_Omega + 2 * self.NN)
             coeffs = self.Hessian_GN(zl, zl, uk1_data, uk1_L)
+
             zl = jnp.linalg.solve(coeffs, -self.grad_loss(zl, uk1_data, uk1_L))
 
             z1 = zl[:self.M_Omega]
@@ -225,7 +241,96 @@ class NonlinearElliptic2D(object):
         self.weights = uk_weights
         self.hs = uk_hs
 
-    def Knm(self, xl, Ml, M_Omegal, Nl, hsl, xr, Mr, M_Omegar, Nr, hsr, q, Q, qweights, eigen_func_indices):
+    def __build_theta_invariants(self, x, M, M_Omega, N, q, Q, qweights, eigen_func_indices):
+        """
+                Input:
+
+                q:          matrix
+                        The coordinates of gauss quadrature points, it is a matrix with Q rows and 2 columns,
+                        each column contains coordinates in each axis.
+
+                Q:          integer
+                        The number of gauss quadrature points.
+
+                qweights:   list
+                        A vector with Q elements. The gauss quadrature weights associated with each point.
+
+                eigen_func_indices: list
+                        The indices of eigen functions, it is a matrix with 2 columns,
+                        each column contains indices associated with each axis. For instance, if the k-th row
+                        contains an element [i, j], then, the basis function is sin(i * pi * x + j * pi * y).
+                """
+        theta = jnp.zeros((M + N, M + N))
+
+        x0 = jnp.reshape(x[:, 0], (M, 1))
+        q0 = jnp.reshape(q[:, 0], (Q, 1))
+
+        x1 = jnp.reshape(x[:, 1], (M, 1))
+        q1 = jnp.reshape(q[:, 1], (Q, 1))
+
+        x0x0v = jnp.tile(x0, M).flatten()
+        x0x0h = jnp.tile(jnp.transpose(x0), (M, 1)).flatten()
+
+        x1x1v = jnp.tile(x1, M).flatten()
+        x1x1h = jnp.tile(jnp.transpose(x1), (M, 1)).flatten()
+
+        x0q0v = jnp.tile(x0, Q).flatten()
+        x0q0h = jnp.tile(jnp.transpose(q0), (M, 1)).flatten()
+
+        x1q1v = jnp.tile(x1, Q).flatten()
+        x1q1h = jnp.tile(jnp.transpose(q1), (M, 1)).flatten()
+
+        q0q0v = jnp.tile(q0, Q).flatten()
+        q0q0h = jnp.tile(jnp.transpose(q0), (Q, 1)).flatten()
+
+        q1q1v = jnp.tile(q1, Q).flatten()
+        q1q1h = jnp.tile(jnp.transpose(q1), (Q, 1)).flatten()
+
+        # Acting Dirac_x, Dirac_y on K
+        # K(x, y)
+        val = vmap(lambda _x0, _x1, _y0, _y1: self.kernel.kappa(_x0, _x1, _y0, _y1))(x0x0v, x1x1v, x0x0h, x1x1h)
+        theta = theta.at[:M, :M].set(jnp.reshape(val, (M, M)))
+
+        # Acting Dirac_x, L1_y on K
+        # \Delta_y K(x, q)
+        val = vmap(lambda _x0, _x1, _q0, _q1: self.kernel.Delta_y_kappa(_x0, _x1, _q0, _q1))(x0q0v, x1q1v, x0q0h, x1q1h)
+        mtx = np.reshape(val, (M, Q))
+
+        tmp = jnp.dot(mtx, self.eigen_func_vals.T)
+        theta = theta.at[:M, M:M + N].set(tmp)
+        theta = theta.at[M:M + N, :M].set(tmp.T)
+
+        #######################################################################################
+        # Acting L1_x, L1_y on K
+        # \Delta_x \Delta_y K(q, q)
+        val = vmap(lambda _qx0, _qx1, _qy0, _qy1: self.kernel.Delta_x_Delta_y_kappa(_qx0, _qx1, _qy0, _qy1))(q0q0v,
+                                                                                                             q1q1v,
+                                                                                                             q0q0h,
+                                                                                                             q1q1h)
+        mtx = jnp.reshape(val, (Q, Q))
+
+        func = (lambda ar, ac: jnp.dot(ar, jnp.dot(mtx, ac)))
+        func = (vmap(func, in_axes=(None, 0)))
+        func = (vmap(func, in_axes=(0, None)))
+        tmp = func(self.eigen_func_vals, self.eigen_func_vals)
+
+        theta = theta.at[M:M + N, M:M + N].set(tmp)
+
+        self.__theta_invariant = theta
+
+        val = vmap(lambda _x0, _x1, _q0, _q1: self.kernel.kappa(_x0, _x1, _q0, _q1))(x0q0v, x1q1v, x0q0h, x1q1h)
+        mtx = np.reshape(val, (M, Q))
+        self.__xqkappa = mtx
+
+        val = vmap(lambda _p0, _p1, _q0, _q1: self.kernel.Delta_x_kappa(_p0, _p1, _q0, _q1))(q0q0v, q1q1v, q0q0h, q1q1h)
+        mtx = np.reshape(val, (Q, Q))
+        self.__qqDeltakappa = mtx
+
+        val = vmap(lambda _p0, _p1, _q0, _q1: self.kernel.kappa(_p0, _p1, _q0, _q1))(q0q0v, q1q1v, q0q0h, q1q1h)
+        mtx = np.reshape(val, (Q, Q))
+        self.__qqkappa = mtx
+
+    def build_theta(self, x, M, M_Omega, N, hs, q, Q, qweights, eigen_func_indices):
         """
         Input:
 
@@ -244,167 +349,37 @@ class NonlinearElliptic2D(object):
                 each column contains indices associated with each axis. For instance, if the k-th row
                 contains an element [i, j], then, the basis function is sin(i * pi * x + j * pi * y).
         """
-        theta = jnp.zeros((Ml + 2 * Nl, Mr + 2 * Nr))
+        theta = jnp.zeros((M + 2 * N, M + 2 * N))
 
-        xl0 = jnp.reshape(xl[:, 0], (Ml, 1))
-        xr0 = jnp.reshape(xr[:, 0], (Mr, 1))
-        q0 = jnp.reshape(q[:, 0], (Q, 1))
-
-        xl1 = jnp.reshape(xl[:, 1], (Ml, 1))
-        xr1 = jnp.reshape(xr[:, 1], (Mr, 1))
-        q1 = jnp.reshape(q[:, 1], (Q, 1))
-
-        xl0xr0v = jnp.tile(xl0, Mr).flatten()
-        xl0xr0h = jnp.tile(jnp.transpose(xr0), (Ml, 1)).flatten()
-
-        xl1xr1v = jnp.tile(xl1, Mr).flatten()
-        xl1xr1h = jnp.tile(jnp.transpose(xr1), (Ml, 1)).flatten()
-
-        xl0q0v = jnp.tile(xl0, Q).flatten()
-        xl0q0h = jnp.tile(jnp.transpose(q0), (Ml, 1)).flatten()
-
-        xl1q1v = jnp.tile(xl1, Q).flatten()
-        xl1q1h = jnp.tile(jnp.transpose(q1), (Ml, 1)).flatten()
-
-        q0xr0v = jnp.tile(q0, Mr).flatten()
-        q0xr0h = jnp.tile(jnp.transpose(xr0), (Q, 1)).flatten()
-
-        q1xr1v = jnp.tile(q1, Mr).flatten()
-        q1xr1h = jnp.tile(jnp.transpose(xr1), (Q, 1)).flatten()
-
-        q0q0v = jnp.tile(q0, Q).flatten()
-        q0q0h = jnp.tile(jnp.transpose(q0), (Q, 1)).flatten()
-
-        q1q1v = jnp.tile(q1, Q).flatten()
-        q1q1h = jnp.tile(jnp.transpose(q1), (Q, 1)).flatten()
-
-        # Acting Dirac_x, Dirac_y on K
-        # K(x, y)
-        val = vmap(lambda _x0, _x1, _y0, _y1: self.kernel.kappa(_x0, _x1, _y0, _y1))(xl0xr0v, xl1xr1v, xl0xr0h, xl1xr1h)
-        theta = theta.at[:Ml, :Mr].set(jnp.reshape(val, (Ml, Mr)))
-
-        # Acting Dirac_x, L1_y on K
-        # \Delta_y K(x, q)
-        val = vmap(lambda _x0, _x1, _q0, _q1: self.kernel.Delta_y_kappa(_x0, _x1, _q0, _q1))(xl0q0v, xl1q1v, xl0q0h, xl1q1h)
-        mtx = np.reshape(val, (Ml, Q))
-
-        eigen_func1r = lambda _q0, _q1, _wq, _i, _j: jnp.sin(_i * jnp.pi * _q0 + _j * jnp.pi * _q1) * _wq
-        eigen_func1r = vmap(eigen_func1r, in_axes=(None, None, None, 0, 0))
-        eigen_func1r = vmap(eigen_func1r, in_axes=(0, 0, 0, None, None))
-
-        eigen_func_valsr = eigen_func1r(q[:, 0], q[:, 1], qweights, eigen_func_indices[:, 0], eigen_func_indices[:, 1])
-
-        theta = theta.at[:Ml, Mr:Mr + Nr].set(mtx @ eigen_func_valsr)
-
+        # Setting the invariant parts
+        theta = theta.at[:M + N, :M + N].set(self.__theta_invariant)
         # Acting Dirac_x, L2_y on K
         # K(x, q)
-        val = vmap(lambda _x0, _x1, _q0, _q1: self.kernel.kappa(_x0, _x1, _q0, _q1))(xl0q0v, xl1q1v, xl0q0h, xl1q1h)
-        mtx = np.reshape(val, (Ml, Q))
+        lop_vals = vmap(lambda _t: hs * _t)(self.eigen_func_vals).T
 
-        lop1r = lambda _h, _q0, _q1, _wq, _i, _j: _h * jnp.sin(_i * jnp.pi * _q0 + _j * jnp.pi * _q1) * _wq
-        lop1r = vmap(lop1r, in_axes=(None, None, None, None, 0, 0))
-        lop1r = vmap(lop1r, in_axes=(0, 0, 0, 0, None, None))
-
-        lop_valsr = lop1r(hsr, q[:, 0], q[:, 1], qweights, eigen_func_indices[:, 0], eigen_func_indices[:, 1])
-
-        theta = theta.at[:Ml, Mr + Nr:Mr + 2 * Nr].set(mtx @ lop_valsr)
+        tmp = jnp.dot(self.__xqkappa, lop_vals)
+        theta = theta.at[:M, M + N:M + 2 * N].set(tmp)
+        theta = theta.at[M + N:M + 2 * N, :M].set(tmp.T)
 
         #######################################################################################
-        # Acting L1_x, Dirac_y on K
-        # \Delta_x K(q, x)
-        val = vmap(lambda _q0, _q1, _x0, _x1: self.kernel.Delta_x_kappa(_q0, _q1, _x0, _x1))(q0xr0v, q1xr1v, q0xr0h, q1xr1h)
-        mtx = np.reshape(val, (Q, Mr))
-
-        eigen_func1l = lambda _i, _j, _q0, _q1, _wq: jnp.sin(_i * jnp.pi * _q0 + _j * jnp.pi * _q1) * _wq
-        eigen_func1l = vmap(eigen_func1l, in_axes=(None, None, 0, 0, 0))
-        eigen_func1l = vmap(eigen_func1l, in_axes=(0, 0, None, None, None))
-
-        eigen_func_valsl = eigen_func1l(eigen_func_indices[:, 0], eigen_func_indices[:, 1], q[:, 0], q[:, 1], qweights)
-
-        theta = theta.at[Ml:Ml + Nl, 0:Mr].set(eigen_func_valsl @ mtx)
-
-        # Acting L1_x, L1_y on K
-        # \Delta_x \Delta_y K(q, q)
-        val = vmap(lambda _qx0, _qx1, _qy0, _qy1: self.kernel.Delta_x_Delta_y_kappa(_qx0, _qx1, _qy0, _qy1))(q0q0v, q1q1v, q0q0h, q1q1h)
-        mtx = jnp.reshape(val, (Q, Q))
-
-        func = (lambda ar, ac: jnp.dot(ar, jnp.dot(mtx, ac)))
-        func = (vmap(func, in_axes=(None, 0)))
-        func = (vmap(func, in_axes=(0, None)))
-        tmp = func(eigen_func_valsl, eigen_func_valsr.T)
-
-        theta = theta.at[Ml:Ml + Nl, Mr:Mr + Nr].set(tmp)
-
         # Acting L1_x, L2_y on K
-        val = vmap(lambda _p0, _p1, _q0, _q1: self.kernel.Delta_x_kappa(_p0, _p1, _q0, _q1))(q0q0v, q1q1v, q0q0h, q1q1h)
-        mtx = np.reshape(val, (Q, Q))
-
-        func = (lambda ar, ac: jnp.dot(ar, jnp.dot(mtx, ac)))
+        func = (lambda ar, ac: jnp.dot(ar, jnp.dot(self.__qqDeltakappa, ac)))
         func = (vmap(func, in_axes=(None, 0)))
         func = (vmap(func, in_axes=(0, None)))
-        tmp = func(eigen_func_valsl, lop_valsr.T)
+        tmp = func(self.eigen_func_vals, lop_vals.T)
 
-        theta = theta.at[Ml:Ml + Nl, Mr + Nr:Mr + 2 * Nr].set(tmp)
-        #######################################################################################
-        # Acting L2_x, Dirac_y on K
-        # K(x, q)
-        val = vmap(lambda _q0, _q1, _x0, _x1: self.kernel.kappa(_q0, _q1, _x0, _x1))(q0xr0v, q1xr1v, q0xr0h, q1xr1h)
-        mtx = np.reshape(val, (Q, Mr))
-
-        lop1l = lambda _h, _q0, _q1, _wq, _i, _j: _h * jnp.sin(_i * jnp.pi * _q0 + _j * jnp.pi * _q1) * _wq
-        lop1l = vmap(lop1l, in_axes=(None, None, None, None, 0, 0))
-        lop1l = vmap(lop1l, in_axes=(0, 0, 0, 0, None, None))
-
-        lop_valsl = lop1l(hsl, q[:, 0], q[:, 1], qweights, eigen_func_indices[:, 0], eigen_func_indices[:, 1])
-
-        theta = theta.at[Ml + Nl:Ml + 2 * Nl, :Mr].set(lop_valsl.T @ mtx)
-
-        # Acting L2_x, L1_y on K
-        val = vmap(lambda _p0, _p1, _q0, _q1: self.kernel.Delta_y_kappa(_p0, _p1, _q0, _q1))(q0q0v, q1q1v, q0q0h, q1q1h)
-        mtx = np.reshape(val, (Q, Q))
-
-        func = (lambda ar, ac: jnp.dot(ar, jnp.dot(mtx, ac)))
-        func = (vmap(func, in_axes=(None, 0)))
-        func = (vmap(func, in_axes=(0, None)))
-        tmp = func(lop_valsl.T, eigen_func_valsr.T)
-
-        theta = theta.at[Ml + Nl:Ml + 2 * Nl, Mr:Mr + Nr].set(tmp)
+        theta = theta.at[M:M + N, M + N:M + 2 * N].set(tmp)
+        theta = theta.at[M + N:M + 2 * N, M:M + N].set(tmp.T)
 
         # Acting L2_x, L2_y on K
-        val = vmap(lambda _p0, _p1, _q0, _q1: self.kernel.kappa(_p0, _p1, _q0, _q1))(q0q0v, q1q1v, q0q0h, q1q1h)
-        mtx = np.reshape(val, (Q, Q))
-
-        func = (lambda ar, ac: jnp.dot(ar, jnp.dot(mtx, ac)))
+        func = (lambda ar, ac: jnp.dot(ar, jnp.dot(self.__qqkappa, ac)))
         func = (vmap(func, in_axes=(None, 0)))
         func = (vmap(func, in_axes=(0, None)))
-        tmp = func(lop_valsl.T, lop_valsr.T)
+        tmp = func(lop_vals.T, lop_vals.T)
 
-        theta = theta.at[Ml + Nl:Ml + 2 * Nl, Mr + Nr:Mr + 2 * Nr].set(tmp)
+        theta = theta.at[M + N:M + 2 * N, M + N:M + 2 * N].set(tmp)
 
         return theta
-
-    def build_theta(self, x, M, M_Omega, N, hs, q, Q, qweights, eigen_func_indices):
-        '''
-        Input:
-
-        x:          list
-            the sample points
-        M:          integer
-            the number of points, including those on the boundary
-        M_Omega:    integer
-            the number of points int the interior
-        N:          integer
-            2 * N is the number of eigenfunctions used, each eivenfunction is either sin(i\pi x) or cos(i\pi x)
-        q:          list
-            the Gauss-quadrature points
-        Q:          integer
-            the number of Gauss-quadrature points
-        qweights:   list
-            the Gauss-quadrature weights
-        hs:         list
-            the values of tau'(u^n) at quadrature points
-        '''
-        return self.Knm(x, M, M_Omega, N, hs, x, M, M_Omega, N, hs, q, Q, qweights, eigen_func_indices)
 
     # build Nuggets
     def build_nuggets(self, theta, M, N):
@@ -418,6 +393,104 @@ class NonlinearElliptic2D(object):
 
     def fit(self, nx):
         return self.eval_u(nx, self.weights, self.hs)
+
+    def __build_u_invariants(self):
+        nx = self.gauss_samples
+
+        x = self.samples
+        x0 = jnp.reshape(x[:, 0], (self.M, 1))
+        x1 = jnp.reshape(x[:, 1], (self.M, 1))
+
+        nxl = len(nx)
+        nx0 = jnp.reshape(nx[:, 0], (nxl, 1))
+        nx1 = jnp.reshape(nx[:, 1], (nxl, 1))
+        nxx0v = jnp.tile(nx0, self.M).flatten()
+        nxx0h = jnp.tile(np.transpose(x0), (nxl, 1)).flatten()
+        nxx1v = jnp.tile(nx1, self.M).flatten()
+        nxx1h = jnp.tile(np.transpose(x1), (nxl, 1)).flatten()
+
+        q0 = jnp.reshape(self.gauss_samples[:, 0], (self.Q, 1))
+        q1 = jnp.reshape(self.gauss_samples[:, 1], (self.Q, 1))
+
+        nx0q0v = jnp.tile(nx0, self.Q).flatten()
+        nx0q0h = jnp.tile(np.transpose(q0), (nxl, 1)).flatten()
+        nx1q1v = jnp.tile(nx1, self.Q).flatten()
+        nx1q1h = jnp.tile(np.transpose(q1), (nxl, 1)).flatten()
+
+        ##################################################################################
+        mtx = jnp.zeros((nxl, self.M + self.NN))
+
+        val0 = vmap(lambda _x0, _x1, _y0, _y1: self.kernel.kappa(_x0, _x1, _y0, _y1))(nxx0v, nxx1v, nxx0h, nxx1h)
+        mtx = mtx.at[0:nxl, :self.M].set(jnp.reshape(val0, (nxl, self.M)))
+
+        val1 = vmap(lambda _x0, _x1, _q0, _q1: self.kernel.Delta_y_kappa(_x0, _x1, _q0, _q1))(nx0q0v, nx1q1v, nx0q0h,
+                                                                                              nx1q1h)
+        tmp = jnp.reshape(val1, (nxl, self.Q))
+
+        mtx = mtx.at[:nxl, self.M:self.M + self.NN].set(jnp.dot(tmp, self.eigen_func_vals.T))
+        self.u_invariants = mtx
+
+        ##################################################################################
+        mtx = jnp.zeros((nxl, self.M + self.NN))
+
+        val0 = vmap(lambda _x0, _x1, _y0, _y1: self.kernel.Delta_x_kappa(_x0, _x1, _y0, _y1))(nxx0v, nxx1v, nxx0h,
+                                                                                              nxx1h)
+        mtx = mtx.at[0:nxl, :self.M].set(jnp.reshape(val0, (nxl, self.M)))
+
+        val1 = vmap(lambda _x0, _x1, _q0, _q1: self.kernel.Delta_x_Delta_y_kappa(_x0, _x1, _q0, _q1))(nx0q0v, nx1q1v,
+                                                                                                      nx0q0h, nx1q1h)
+        tmp = np.reshape(val1, (nxl, self.Q))
+
+        mtx = mtx.at[:nxl, self.M:self.M + self.NN].set(jnp.dot(tmp, self.eigen_func_vals.T))
+        self.Delta_u_invariants = mtx
+
+    def __eval_u_at_gauss_quadrature_points(self, uweights, hs):
+        nx = self.gauss_samples
+        nxl = len(nx)
+        mtx = jnp.zeros((nxl, self.M + 2 * self.NN))
+
+        mtx = mtx.at[0:nxl, :self.M + self.NN].set(self.u_invariants)
+        # Acting Dirac_x, L2_y on K
+        # K(x, q)
+        lop_vals = vmap(lambda _t: hs * _t)(self.eigen_func_vals).T
+        mtx = mtx.at[:nxl, self.M + self.NN:].set(jnp.dot(self.__qqkappa, lop_vals))
+
+        u = mtx.dot(uweights)
+
+        return u
+
+    def __eval_Delta_u_at_gauss_quadrature_points(self, uweights, hs):
+        """
+        Evaluate Delta u at points nx, where u = <K(x, \Phi), uweights> and uweights = K(\Phi, \Phi)^{-1}U,
+        U is the observation of u.
+
+        Input:
+
+        nx:         list
+            the list of points where we want to evaluate the values of functions
+        uweights:   list
+            the list of weights of a function
+        hs:         list
+            the values of tau'(u^n) at quadrature points
+        Output:
+
+        list
+            the values of Delta u at points nx
+        """
+        nx = self.gauss_samples
+        nxl = len(nx)
+        mtx = jnp.zeros((nxl, self.M + 2 * self.NN))
+
+        mtx = mtx.at[:nxl, :self.M + self.NN].set(self.Delta_u_invariants)
+        # Acting Dirac_x, L2_y on K
+        # K(x, q)
+        lop_vals = vmap(lambda _t: hs * _t)(self.eigen_func_vals).T
+
+        mtx = mtx.at[:nxl, self.M + self.NN:].set(jnp.dot(self.__qqDeltakappa, lop_vals))
+
+        u = mtx.dot(uweights)
+
+        return u
 
     def eval_u(self, nx, uweights, hs):
         """
@@ -466,28 +539,16 @@ class NonlinearElliptic2D(object):
         val1 = vmap(lambda _x0, _x1, _q0, _q1: self.kernel.Delta_y_kappa(_x0, _x1, _q0, _q1))(nx0q0v, nx1q1v, nx0q0h, nx1q1h)
         tmp = jnp.reshape(val1, (nxl, self.Q))
 
-        eigen_func1 = lambda _q0, _q1, _wq, _i, _j: jnp.sin(_i * jnp.pi * _q0 + _j * jnp.pi * _q1) * _wq
-        eigen_func1 = vmap(eigen_func1, in_axes=(None, None, None, 0, 0))
-        eigen_func1 = vmap(eigen_func1, in_axes=(0, 0, 0, None, None))
-
-        eigen_func_vals = eigen_func1(self.gauss_samples[:, 0], self.gauss_samples[:, 1], self.gauss_weights,
-                                       self.eigen_func_indices[:, 0], self.eigen_func_indices[:, 1])
-
-        mtx = mtx.at[:nxl, self.M:self.M + self.NN].set(tmp @ eigen_func_vals)
+        mtx = mtx.at[:nxl, self.M:self.M + self.NN].set(jnp.dot(tmp, self.eigen_func_vals.T))
 
         # Acting Dirac_x, L2_y on K
         # K(x, q)
         val = vmap(lambda _x0, _x1, _q0, _q1: self.kernel.kappa(_x0, _x1, _q0, _q1))(nx0q0v, nx1q1v, nx0q0h, nx1q1h)
         tmp = jnp.reshape(val, (nxl, self.Q))
 
-        lop1 = lambda _h, _q0, _q1, _wq, _i, _j: _h * jnp.sin(_i * jnp.pi * _q0 + _j * jnp.pi * _q1) * _wq
-        lop1 = vmap(lop1, in_axes=(None, None, None, None, 0, 0))
-        lop1 = vmap(lop1, in_axes=(0, 0, 0, 0, None, None))
+        lop_vals = vmap(lambda _t: hs * _t)(self.eigen_func_vals).T
 
-        lop_vals = lop1(hs, self.gauss_samples[:, 0], self.gauss_samples[:, 1],
-                         self.gauss_weights, self.eigen_func_indices[:, 0], self.eigen_func_indices[:, 1])
-
-        mtx = mtx.at[:nxl, self.M + self.NN:].set(tmp @ lop_vals)
+        mtx = mtx.at[:nxl, self.M + self.NN:].set(jnp.dot(tmp, lop_vals))
 
         u = mtx.dot(uweights)
 
@@ -540,29 +601,16 @@ class NonlinearElliptic2D(object):
         val1 = vmap(lambda _x0, _x1, _q0, _q1: self.kernel.Delta_x_Delta_y_kappa(_x0, _x1, _q0, _q1))(nx0q0v, nx1q1v, nx0q0h, nx1q1h)
         tmp = np.reshape(val1, (nxl, self.Q))
 
-        eigen_func1 = lambda _q0, _q1, _wq, _i, _j: jnp.sin(_i * jnp.pi * _q0 + _j * jnp.pi * _q1) * _wq
-        eigen_func1 = vmap(eigen_func1, in_axes=(None, None, None, 0, 0))
-        eigen_func1 = vmap(eigen_func1, in_axes=(0, 0, 0, None, None))
-
-
-        eigen_func_vals = eigen_func1(self.gauss_samples[:, 0], self.gauss_samples[:, 1],
-                                       self.gauss_weights, self.eigen_func_indices[:, 0], self.eigen_func_indices[:, 1])
-
-        mtx = mtx.at[:nxl, self.M:self.M + self.NN].set(tmp @ eigen_func_vals)
+        mtx = mtx.at[:nxl, self.M:self.M + self.NN].set(jnp.dot(tmp, self.eigen_func_vals.T))
 
         # Acting Dirac_x, L2_y on K
         # K(x, q)
         val = vmap(lambda _x0, _x1, _q0, _q1: self.kernel.Delta_x_kappa(_x0, _x1, _q0, _q1))(nx0q0v, nx1q1v, nx0q0h, nx1q1h)
         tmp = np.reshape(val, (nxl, self.Q))
 
-        lop1 = lambda _h, _q0, _q1, _wq, _i, _j: _h * jnp.sin(_i * jnp.pi * _q0 + _j * jnp.pi * _q1) * _wq
-        lop1 = vmap(lop1, in_axes=(None, None, None, None, 0, 0))
-        lop1 = vmap(lop1, in_axes=(0, 0, 0, 0, None, None))
+        lop_vals = vmap(lambda _t: hs * _t)(self.eigen_func_vals).T
 
-        lop_vals = lop1(hs, self.gauss_samples[:, 0], self.gauss_samples[:, 1],
-                         self.gauss_weights, self.eigen_func_indices[:, 0], self.eigen_func_indices[:, 1])
-
-        mtx = mtx.at[:nxl, self.M + self.NN:].set(tmp @ lop_vals)
+        mtx = mtx.at[:nxl, self.M + self.NN:].set(jnp.dot(tmp, lop_vals))
 
         u = mtx.dot(uweights)
 

@@ -92,7 +92,7 @@ class NonlinearElliptic1D(object):
     def u(self, x):
         scalers = jnp.array(jnp.arange(0, self.m) + 1)
         # components = vmap(lambda j, xi_j: j ** self.alpha * xi_j * jnp.sqrt(2) * (jnp.cos(4 * j * jnp.pi * x) + jnp.sin(j * jnp.pi * x)) / (j ** 2 * jnp.pi ** 2))(scalers, self.fxi)
-        components = vmap(lambda j, xi_j: j ** self.alpha * xi_j * jnp.sqrt(2) * jnp.sin(j * jnp.pi * x) / (j ** 2 * jnp.pi ** 2))(scalers, self.fxi)
+        components = vmap(lambda j, xi_j: j ** self.alpha * xi_j * jnp.sqrt(2) * jnp.sin(j * jnp.pi * x))(scalers, self.fxi)
         return jnp.sum(components)
         # return jnp.sin(jnp.pi * x) #+ jnp.sin(2 * jnp.pi * x)
 
