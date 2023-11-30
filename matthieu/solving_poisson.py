@@ -18,7 +18,7 @@ devices = jax.devices()
 # Print the list of devices
 print("Available devices:", devices)
 
-#jax.config.update('jax_platform_name', 'cpu')
+jax.config.update('jax_platform_name', 'cpu')
 
 
 ############################################
