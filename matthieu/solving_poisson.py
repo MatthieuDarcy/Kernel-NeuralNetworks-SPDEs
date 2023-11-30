@@ -8,6 +8,14 @@ import matplotlib.pyplot as plt
 import utils_rough_pde
 from utils_rough_pde import *
 
+import jax 
+devices = jax.devices()
+
+# Print the list of devices
+print("Available devices:", devices)
+
+#jax.config.update('jax_platform_name', 'cpu')
+
 # Ask the user the name of the folder where to save the results
 save_folder = input("Name of the folder where to save the results: ") + "/"
 
