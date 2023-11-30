@@ -230,6 +230,14 @@ pred_list = jnp.array(pred_list)
 print("Best error: ", jnp.min(error_list))
 print("Best relative error: ", jnp.min(relative_error_list))
 
+# In a file, save the error and the relative error\
+with open(save_folder+"error.txt", "w") as f:
+    f.write("Best error: {}\n".format(jnp.min(error_list)))
+    f.write("Best relative error: {}\n".format(jnp.min(relative_error_list)))
+
+    f.write("Number of measurements: {}\n".format(n_meas_list[jnp.argmin(error_list)]))
+
+
 
 # Plot both the error and the relative error
 fig, ax = plt.subplots(1, 2, figsize=(15, 5))
