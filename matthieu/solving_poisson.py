@@ -3,11 +3,13 @@ import os
 
 # Set JAX to use CPU
 os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-print("Default JAX device:", jax.devices()[0])
+
 
 import jax.numpy as jnp
 from jax import random
 from jax import scipy 
+import jax
+print("Default JAX device:", jax.devices()[0])
 
 import matplotlib.pyplot as plt
 
