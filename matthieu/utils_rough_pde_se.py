@@ -1,4 +1,6 @@
 
+# This file is indentical to utils_rough_pde.py except that it uses the squared exponential kernel instead of the matern kernel
+
 import jax.numpy as jnp
 from jax import vmap
 from jax import jit
@@ -57,12 +59,6 @@ def matern_kernel(x, y, length_scale):
     return jnp.exp(-r/(2*length_scale**2))
 
 
-def matern_kernel(x, y, length_scale):
-    r = jnp.sqrt(jnp.sum((x - y) ** 2))
-    #factor =r / length_scale
-    return (1 + jnp.sqrt(5)*r/length_scale + (5 / 3) * (r ** 2) / (length_scale ** 2)) * jnp.exp(-jnp.sqrt(5)*r/length_scale)
-
-
 vmap_kernel_row = vmap(matern_kernel, in_axes=(None, 0, None))
 # Now we apply vmap to the result to vectorize over the rows of the first argument
 vmap_kernel = vmap(vmap_kernel_row, in_axes=(0, None, None))
@@ -82,23 +78,16 @@ def compute_K_pairwise(vector1, vector2, length_scale):
 @jit
 def neg_laplacian_x(x,y, l ):
     hess = -hessian(matern_kernel, argnums = 0)(x,y,l)
-    nu = 5/2
-    hess = jnp.where(jnp.allclose(x,y), nu/(l**2*(nu-1)), hess)
     return jnp.sum(hess)
 
 @jit
 def neg_laplacian_y(x,y, l ):
     hess = -hessian(matern_kernel, argnums = 1)(x,y,l)
-    nu = 5/2
-    hess = jnp.where(jnp.allclose(x,y), nu/(l**2*(nu-1)), hess)
     return jnp.sum(hess)
 
 @jit
 def double_neg_laplacian(x,y,l):
     hess = -hessian(neg_laplacian_x, argnums = 1)(x,y,l)
-
-    nu = 5/2
-    hess = jnp.where(jnp.allclose(x,y), nu**2/(8*(2-3*nu+nu**2))*math.factorial(4)/l**4, hess)
     return jnp.sum(hess)
 
 # Vectorize the gradient computation over the second argument y
