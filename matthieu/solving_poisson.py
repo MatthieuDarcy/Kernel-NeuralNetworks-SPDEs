@@ -42,7 +42,7 @@ parser.add_argument('--n_meas_min', type=int, default=10, help='Minimum number o
 parser.add_argument('--n_meas_max', type=int, help='Maximum number of measurements')
 parser.add_argument('--s', type=float, help='Regularity of the solution')
 parser.add_argument('--save_folder', type=str, help='Folder where to save the results')
-parser.add_argument('--nugget_interior', type=float, default=1e-5, help='Regularization parameter for the interior of the domain')
+parser.add_argument('--nugget_interior', type=float, default=1e-7, help='Regularization parameter for the interior of the domain')
 parser.add_argument('--nugget_boundary', type=float, default=1e-12, help='Regularization parameter for the boundary of the domain')
 
 args = parser.parse_args()
