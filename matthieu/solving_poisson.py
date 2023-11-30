@@ -1,4 +1,6 @@
 
+import os
+
 # Set JAX to use CPU
 os.environ['JAX_PLATFORM_NAME'] = 'cpu'
 print("Default JAX device:", jax.devices()[0])
@@ -83,7 +85,6 @@ else:
 seed = 54
 
 
-import os
 
 # Create the folder for saving the results
 if not os.path.exists(save_folder):
