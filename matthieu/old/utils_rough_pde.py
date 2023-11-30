@@ -122,57 +122,10 @@ def construct_theta_integral(A, B, length_scale):
 kernel_laplacian_vmap1 = jit(vmap(neg_laplacian_y, in_axes=(None, 0, None)))
 vmap_laplacian_kernel_quad = jit(vmap(vmap(kernel_laplacian_vmap1, in_axes=(None, 0, None)), in_axes=(0,None, None)))
 
-def construct_theta(boundary,psi_matrix, root_psi, length_scale):
-    theta_11 = vmap_kernel(boundary, boundary, length_scale)
-    theta_22 = construct_theta_integral(psi_matrix, root_psi, length_scale)
-
-    K_quad = vmap_laplacian_kernel_quad(boundary, root_psi[:, :, None], length_scale)
-    theta_12 = jnp.einsum('nmk,mk->nm', K_quad, psi_matrix)
-    
-
-    theta = jnp.block([[theta_11, theta_12], [theta_12.T, theta_22]])
-
-    return theta
-
-def evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary):
-    K_boundary = vmap_kernel(x,boundary, length_scale)
-    K_interior = jnp.einsum('nmk,mk->nm',  vmap_laplacian_kernel_quad(x, root_psi[:, :, None], length_scale), psi_matrix)
-    K_evaluate = jnp.block([[K_boundary, K_interior]])
-
-    return K_evaluate@c
 
 
 ########################################################################################################################
 
-# Utilities for the data
-def evaluate_function(x, coef, L):
-    values = 0
-    for i, c in enumerate(coef):
-        values +=c*jnp.sin((i+1)*jnp.pi*x/L)*jnp.sqrt(2/L)
-    return values
-
-@jit
-def integrate_f_test_functions(f_values, psi):
-    # Psi should be a matrix containing the values of the weighted test functions at the quadrature points
-    return f_values.T@psi
-vmap_integrate_f_test_functions = jit(vmap(integrate_f_test_functions, in_axes=(0,0)))
-
-# def compute_error(pred_quad, coef_u, length_scale, x_q, w_q, L):
-#     x_q_error, w_q_error =  vmap_root_interval(x_q, w_q, jnp.array([0,L])[None])
-#     x_q_error = jnp.squeeze(x_q_error)
-#     w_q_error = jnp.squeeze(w_q_error)
-#     u_quad = evaluate_function(x_q_error, coef_u, L=L)
-
-#     loss = jnp.sqrt((pred_quad - u_quad)**2@w_q_error)
-#     relative_loss = loss/jnp.sqrt(u_quad**2@w_q_error)
-
-#     return loss, relative_loss
-@jit
-def compute_error(pred, u_true):
-
-    loss = jnp.sqrt(jnp.mean((pred - u_true)**2))
-    relative_loss = loss/jnp.sqrt(jnp.mean(u_true**2))
-    return loss, relative_loss
 
 
 if __name__=="__main__":
