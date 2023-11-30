@@ -139,6 +139,9 @@ lower, upper = 0.0, 1.0
 length_scale = 0.1
 boundary = jnp.array([[lower, upper]]).T
 
+print("Nugget interior: ", nugget_interior)
+print("Nugget boundary: ", nugget_boundary)
+
 
 error_list = []
 relative_error_list = []
