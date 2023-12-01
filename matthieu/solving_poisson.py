@@ -243,7 +243,7 @@ for n_meas in n_meas_list:
 
     # Compute the numerical solution at the quadrature points (for computing the error)
     pred_error = evaluate_prediction(x_error, c, length_scale, root_psi, psi_matrix, boundary)
-    bp()
+
 
     # Compute the error between the true solution and the numerical solution
     loss, relative_loss = compute_error(pred_error, u_error, w_error)
@@ -254,7 +254,7 @@ for n_meas in n_meas_list:
     print("L^2 Error, Relative  L^2 error (second method):", loss_2, relative_loss_2)
 
     # Also compute the error in the H^1 norm
-    loss_h, relative_loss_h = compute_error_h(pred_error, coef_u,x_error, w_error, 1.0, L = 1.0)
+    loss_h, relative_loss_h = compute_error_h(pred_error, u_error,x_error, w_error, 1.0, L = 1.0)
     print("H^1 Error, Relative H^1 error :", loss_h, relative_loss_h)
 
     # Append the errors to the list
