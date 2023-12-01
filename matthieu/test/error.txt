@@ -1,3 +1,3 @@
-Best error: 0.0006825493640216039
-Best relative error: 0.0006150350092004981
+Best error: 0.0016498047568121866
+Best relative error: 0.0014866143568084728
 Number of measurements: 400
