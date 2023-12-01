@@ -142,7 +142,8 @@ plt.savefig(save_folder+"u_f.png")
 
 # Solve the Poisson equation with increasing number of measurements
 
-n_meas_list = jnp.arange(n_meas_min, n_meas_max + 50, 50, dtype=int)
+increment = 50
+n_meas_list = jnp.arange(n_meas_min, n_meas_max + increment, increment, dtype=int)
 # Boundary of the domain
 lower, upper = 0.0, 1.0
 length_scale = 0.1
@@ -158,7 +159,7 @@ relative_error_list = []
 pred_list = []
 
 from scipy.special import roots_legendre
-n_order = 25
+n_order = 50
 x_q, w_q = roots_legendre(n_order)
 
 error_list = []
