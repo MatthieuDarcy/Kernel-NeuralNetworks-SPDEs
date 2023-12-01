@@ -247,7 +247,7 @@ with open(save_folder+"error.txt", "w") as f:
 
 # Plot both the error and the relative error
 fig, ax = plt.subplots(1, 2, figsize=(15, 5))
-ax[0].plot(n_meas_list, error_list, label = r"$n^{}$".format(jnp.round(conv_rate,3)))
+ax[0].plot(n_meas_list, error_list, label = r"$r$ = {}".format(jnp.round(conv_rate,3)))
 ax[0].scatter(n_meas_list, error_list)
 ax[0].set_yscale("log")
 ax[0].set_xlabel("Number of measurements")
@@ -255,7 +255,7 @@ ax[0].set_ylabel(r"$||u^\dagger - u* ||_{L^2}$")
 ax[0].set_title(r"$L^2$ Error")
 ax[0].legend()
 
-ax[1].plot(n_meas_list, relative_error_list,  label = r"$n^{}$".format(jnp.round(conv_rate,3)))
+ax[1].plot(n_meas_list, relative_error_list,  label = r"$r$ = {}".format(jnp.round(conv_rate,3)))
 ax[1].scatter(n_meas_list, relative_error_list)
 ax[1].set_yscale("log")
 ax[1].set_xlabel("Number of measurements")
