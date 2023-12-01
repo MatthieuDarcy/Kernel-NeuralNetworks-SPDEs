@@ -176,6 +176,13 @@ pred_list = []
 from scipy.special import roots_legendre
 x_q, w_q = roots_legendre(n_order)
 
+# These are to compute the error in the L^2 and H^1 norm (we can afford to go much higher as we only evaluate two functions)
+x_error, w_error = roots_legendre(1000)
+x_error, w_error =  root_interval(x_error, w_error, [0,1])
+# The true solution evaluated at the quadrature points (only required for computing the error)
+u_error = evaluate_function(x_error, coef_u, L=L)
+
+
 error_list = []
 relative_error_list = []
 
@@ -230,17 +237,19 @@ for n_meas in n_meas_list:
     # Compute the numerical solution
     pred = evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary)
     pred_list.append(pred)
+    # Compute the numerical solution at the quadrature points (for computing the error)
+    pred_error = evaluate_prediction(x_error, c, length_scale, root_psi, psi_matrix, boundary)
 
     # Compute the error between the true solution and the numerical solution
-    loss, relative_loss = compute_error(pred, u_values)
+    loss, relative_loss = compute_error(pred_error, u_error)
     print("L^2 Error, Relative  L^2 error :", loss, relative_loss)
 
      # Compute the L^2 error using the second method (for sanity check)
-    loss, relative_loss = compute_error_h(pred, coef_u,x, 0)
-    print("L^2 Error, Relative  L^2 error (second method):", loss, relative_loss)
+    loss_2, relative_loss_2 = compute_error_h(pred_error, coef_u,x_error, w_error, 0.0, L = 1.0)
+    print("L^2 Error, Relative  L^2 error (second method):", loss_2, relative_loss_2)
 
     # Also compute the error in the H^1 norm
-    loss_h, relative_loss_h = compute_error_h(pred, coef_u,x, 1)
+    loss_h, relative_loss_h = compute_error_h(pred_error, coef_u,x_error, w_error, 1.0, L = 1.0)
     print("H^1 Error, Relative H^1 error :", loss_h, relative_loss_h)
 
     # Append the errors to the list

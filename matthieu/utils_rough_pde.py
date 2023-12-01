@@ -203,37 +203,66 @@ vmap_integrate_f_test_functions = jit(vmap(integrate_f_test_functions, in_axes=(
 #     relative_loss = loss/jnp.sqrt(u_quad**2@w_q_error)
 
 #     return loss, relative_loss
-@jit
-def compute_error(pred, u_true):
+# @jit
+# def compute_error(pred, u_true):
 
-    loss = jnp.sqrt(jnp.mean((pred - u_true)**2))
-    relative_loss = loss/jnp.sqrt(jnp.mean(u_true**2))
+#     loss = jnp.sqrt(jnp.mean((pred - u_true)**2))
+#     relative_loss = loss/jnp.sqrt(jnp.mean(u_true**2))
+#     return loss, relative_loss
+
+# def compute_projection_sin(x, f_values, n_coef):
+#     # Compute the projection of the function f on the sine basis
+#     # f_values: values of the function f on the domain x
+#     # n_coef: number of coefficients to compute
+#     # return: the coefficients of the projection
+#     L = x[-1] - x[0]
+#     sin_basis = jnp.sqrt(2/L)*jnp.array([jnp.sin(jnp.pi*k/L*x) for k in range(1, n_coef+1)])
+
+#     return jnp.mean(f_values[None]*sin_basis, axis = -1)
+
+# def compute_h_norm(coef, s, L = 1.0):
+#     eigenvalues = jnp.arange(1, coef.shape[0]+1)**2*jnp.pi**2/L**2
+#     return jnp.sqrt(jnp.sum(coef**2*eigenvalues**s))
+
+# def compute_error_h(pred, true_coef,x, s):
+#     L = x[-1] - x[0]
+
+#     # Compute the preojection of the prediction on the sine basis
+#     coef_pred = compute_projection_sin(x, pred, n_coef = true_coef.shape[0])
+#     # Compute the error between the true coefficients and the predicted coefficients
+#     error = compute_h_norm(true_coef - coef_pred, s, L=L)
+#     norm_true = compute_h_norm(true_coef, s, L= L)
+
+#     return error, error/norm_true
+
+# The following uses a Gauss quadrature rule to compute the integral instead of the trapezoidal rule (this is more accurate)
+@jit
+def compute_error(pred_q, true_q, w_q):
+
+    loss = jnp.sqrt(jnp.sum((pred_q - true_q)**2*w_q))
+    relative_loss = loss/jnp.sqrt(jnp.sum(true_q**2*w_q))
     return loss, relative_loss
 
-def compute_projection_sin(x, f_values, n_coef):
-    # Compute the projection of the function f on the sine basis
-    # f_values: values of the function f on the domain x
-    # n_coef: number of coefficients to compute
-    # return: the coefficients of the projection
-    L = x[-1] - x[0]
-    sin_basis = jnp.sqrt(2/L)*jnp.array([jnp.sin(jnp.pi*k/L*x) for k in range(1, n_coef+1)])
-
-    return jnp.mean(f_values[None]*sin_basis, axis = -1)
+def compute_projection_sin(x_q, w_q, f_values, n_coef, L = 1.0):
+    sin_basis = jnp.sqrt(2/L)*jnp.array([jnp.sin(jnp.pi*k/L*x_q) for k in range(1, n_coef+1)])
+    return jnp.sum(f_values[None]*sin_basis*w_q, axis = -1)
 
 def compute_h_norm(coef, s, L = 1.0):
     eigenvalues = jnp.arange(1, coef.shape[0]+1)**2*jnp.pi**2/L**2
     return jnp.sqrt(jnp.sum(coef**2*eigenvalues**s))
 
-def compute_error_h(pred, true_coef,x, s):
-    L = x[-1] - x[0]
+
+def compute_error_h(pred_q, true_coef,x_q, w_q, s, L = 1.0):
 
     # Compute the preojection of the prediction on the sine basis
-    coef_pred = compute_projection_sin(x, pred, n_coef = true_coef.shape[0])
+    coef_pred = compute_projection_sin(x_q, w_q, pred_q, n_coef = true_coef.shape[0], L = 1.0)
     # Compute the error between the true coefficients and the predicted coefficients
     error = compute_h_norm(true_coef - coef_pred, s, L=L)
     norm_true = compute_h_norm(true_coef, s, L= L)
 
     return error, error/norm_true
+
+
 
 
 if __name__=="__main__":
