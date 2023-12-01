@@ -46,12 +46,16 @@ parser = argparse.ArgumentParser(description='Solve the Poisson equation with in
 # - regularity (required)
 # - save folder (required)
 
-parser.add_argument('--kernel_name', type=str, default="matern", help='Kernel name')
-parser.add_argument('--measurement_type', type=str, default="indicator", help='Measurement type')
-parser.add_argument('--n_meas_min', type=int, default=10, help='Minimum number of measurements')
+
+# First the mandatory arguments
 parser.add_argument('--n_meas_max', type=int, help='Maximum number of measurements')
 parser.add_argument('--s', type=float, help='Regularity of the solution')
 parser.add_argument('--save_folder', type=str, help='Folder where to save the results')
+
+#Now the optional arguments
+parser.add_argument('--kernel_name', type=str, default="matern", help='Kernel name')
+parser.add_argument('--measurement_type', type=str, default="indicator", help='Measurement type')
+parser.add_argument('--n_meas_min', type=int, default=10, help='Minimum number of measurements')
 parser.add_argument('--nugget_interior', type=float, default=1e-7, help='Regularization parameter for the interior of the domain')
 parser.add_argument('--nugget_boundary', type=float, default=1e-12, help='Regularization parameter for the boundary of the domain')
 # add an argument for the seed
@@ -62,6 +66,7 @@ parser.add_argument('--length_scale', type=float, default=0.1, help='Length scal
 parser.add_argument('--n_order', type=int, default=50, help='Order of the quadrature rule')
 # add an argument for the number of coefficients
 parser.add_argument('--n_coef', type=int, default=1000, help='Number of coefficients')
+parser.add_argument('--n_evaluations', type=int, default=2000, help='Number of evaluations for trapzoidal rule')
 
 args = parser.parse_args()
 
@@ -77,6 +82,7 @@ seed = args.seed
 length_scale = args.length_scale
 n_order = args.n_order
 n_coef = args.n_coef
+n_evaluations = args.n_evaluations
 
 
 
@@ -116,7 +122,8 @@ coef_u =  jnp.ones(shape = (1, ))/(jnp.arange(1, n_coef+1)**(decay_u))
 coef_u = random.normal(key, shape=(n_coef,))/(jnp.arange(1, n_coef+1)**(decay_u))
 coef_f = coef_u*jnp.arange(1, n_coef+1)**(2)*jnp.pi**2*L**2
 
-x = jnp.linspace(0, L, 999)
+
+x = jnp.linspace(0, L, n_evaluations)
 u_values = evaluate_function(x, coef_u, L=L)
 f_values = evaluate_function(x, coef_f, L=L)
 
@@ -172,6 +179,9 @@ x_q, w_q = roots_legendre(n_order)
 error_list = []
 relative_error_list = []
 
+error_list_h = []
+relative_error_list_h = []
+
 pred_list = []
 for n_meas in n_meas_list:
 
@@ -223,14 +233,29 @@ for n_meas in n_meas_list:
 
     # Compute the error between the true solution and the numerical solution
     loss, relative_loss = compute_error(pred, u_values)
+    print("L^2 Error, Relative  L^2 error :", loss, relative_loss)
+
+     # Compute the L^2 error using the second method (for sanity check)
+    loss_2, relative_loss_2 = compute_error_h(pred, coef_u,x, 0)
+    print("L^2 Error, Relative  L^2 error (second method):", loss_2, relative_loss_2)
+
+    # Also compute the error in the H^1 norm
+    loss_h, relative_loss_h = compute_error_h(pred, coef_u,x, 1)
+    print("H^1 Error, Relative H^1 error :", loss_h, relative_loss_h)
+
+    # Append the errors to the list
     error_list.append(loss)
     relative_error_list.append(relative_loss)
+    error_list_h.append(loss_h)
+    relative_error_list_h.append(relative_loss_h)
 
 
 
 
 error_list = jnp.array(error_list)
 relative_error_list = jnp.array(relative_error_list)
+error_list_h = jnp.array(error_list_h)
+relative_error_list_h = jnp.array(relative_error_list_h)
 
 pred_list = jnp.array(pred_list)
 
@@ -239,12 +264,26 @@ print("Best error: ", jnp.min(error_list))
 print("Best relative error: ", jnp.min(relative_error_list))
 
 # Estimate the convergence rate by fitting a line to the log-log plot of the error
-log_error = jnp.log(error_list)
 log_n_meas = jnp.log(n_meas_list)
+log_error = jnp.log(error_list)
 
-conv_rate= -jnp.linalg.lstsq(log_n_meas.reshape(-1, 1), log_error.reshape(-1, 1))[0].item()
+a = jnp.hstack([log_n_meas.reshape(-1, 1), jnp.ones_like(log_n_meas.reshape(-1, 1))])
+b = log_error
+r, C = jnp.linalg.lstsq(a, b)[0]
+r, C = -r.item(), jnp.exp(C).item()
 
-print("Convergence rate: ", jnp.round(conv_rate,3)) 
+# Do the same for the H^1 error
+log_error_h = jnp.log(error_list_h)
+
+a = jnp.hstack([log_n_meas.reshape(-1, 1), jnp.ones_like(log_n_meas.reshape(-1, 1))])
+b = log_error_h
+r_h, C_h = jnp.linalg.lstsq(a, b)[0]
+r_h, C_h = -r_h.item(), jnp.exp(C_h).item()
+
+
+
+print("L^2 Convergence rate: ", jnp.round(r,3)) 
+print("H^1 Convergence rate: ", jnp.round(r_h,3))
 
 
 # In a file, save the error and the relative error\
@@ -256,23 +295,40 @@ with open(save_folder+"error.txt", "w") as f:
 
 
 
-# Plot both the error and the relative error
-fig, ax = plt.subplots(1, 2, figsize=(15, 5))
-ax[0].plot(n_meas_list, error_list, label = r"$r$ = {}".format(jnp.round(conv_rate,3)))
-ax[0].scatter(n_meas_list, error_list)
-ax[0].set_yscale("log")
-ax[0].set_xlabel("Number of measurements")
-ax[0].set_ylabel(r"$||u^\dagger - u* ||_{L^2}$")
-ax[0].set_title(r"$L^2$ Error")
-ax[0].legend()
+# Plot both the error and the relative error for the L^2 norm and the H^1 norm
+fig, ax = plt.subplots(2, 2, figsize=(15, 10))
+ax[0,0].plot(n_meas_list, error_list, label = r"$r$ = {}, C = {}".format(jnp.round(r,3), jnp.round(C, 3)))
+ax[0,0].scatter(n_meas_list, error_list)
+ax[0,0].set_yscale("log")
+ax[0,0].set_xlabel("Number of measurements")
+ax[0,0].set_ylabel(r"$||u^\dagger - u* ||_{L^2}$")
+ax[0,0].set_title(r"$L^2$ Error")
+ax[0,0].legend()
 
-ax[1].plot(n_meas_list, relative_error_list,  label = r"$r$ = {}".format(jnp.round(conv_rate,3)))
-ax[1].scatter(n_meas_list, relative_error_list)
-ax[1].set_yscale("log")
-ax[1].set_xlabel("Number of measurements")
-ax[1].set_ylabel(r"$\frac{||u^\dagger - u* ||_{L^2}}{|| u* ||_{L^2}}$")
-ax[1].set_title(r"Relative $L^2$ Error")
-ax[1].legend()
+ax[0,1].plot(n_meas_list, relative_error_list,  label = r"$r$ = {}, C = {}".format(jnp.round(r,3), jnp.round(C, 3)))
+ax[0,1].scatter(n_meas_list, relative_error_list)
+ax[0,1].set_yscale("log")
+ax[0,1].set_xlabel("Number of measurements")
+ax[0,1].set_ylabel(r"$\frac{||u^\dagger - u* ||_{L^2}}{|| u* ||_{L^2}}$")
+ax[0,1].set_title(r"Relative $L^2$ Error")
+ax[0,1].legend()
+
+ax[1,0].plot(n_meas_list, error_list_h, label = r"$r$ = {}, C = {}".format(jnp.round(r_h,3), jnp.round(C_h, 3)))
+ax[1,0].scatter(n_meas_list, error_list_h)
+ax[1,0].set_yscale("log")
+ax[1,0].set_xlabel("Number of measurements")
+ax[1,0].set_ylabel(r"$||u^\dagger - u* ||_{H^1}$")
+ax[1,0].set_title(r"$H^1$ Error")
+ax[1,0].legend()
+
+ax[1,1].plot(n_meas_list, relative_error_list_h, label = r"$r$ = {}, C = {}".format(jnp.round(r_h,3), jnp.round(C_h, 3)))
+ax[1,1].scatter(n_meas_list, relative_error_list_h)
+ax[1,1].set_yscale("log")
+ax[1,1].set_xlabel("Number of measurements")
+ax[1,1].set_ylabel(r"$\frac{||u^\dagger - u* ||_{H^1}}{|| u* ||_{H^1}}$")
+ax[1,1].set_title(r"Relative $H^1$ Error")
+ax[1,1].legend()
+
 
 # Save the plot
 plt.savefig(save_folder+"error_convergence.png")
@@ -282,12 +338,12 @@ ax[0].plot(x, u_values, label = "True solution", color = "Red")
 for i, pred in enumerate(pred_list):
     ax[0].plot(x, pred, label = "{}".format(n_meas_list[i]))
     ax[0].set_xlabel("x")
-    ax[0].set_ylabel(r"$u(x)$")
+    ax[0].set_ylabel(r"$u^*(x)$")
     ax[0].set_title("Numerical solution")
 
     ax[1].plot(x, pred - u_values, label = "{}".format(n_meas_list[i]))
     ax[1].set_xlabel("x")
-    ax[1].set_ylabel(r"$u^\dagger(x) - u(x)$")
+    ax[1].set_ylabel(r"$u^\dagger(x) - u^*(x)$")
     ax[1].set_title("Pointwise error")
 ax[0].legend()
 ax[1].legend()
@@ -300,12 +356,12 @@ ax[0].plot(x, u_values, label = "True solution", color = "Red")
 for i, pred in enumerate(pred_list[-1:]):
     ax[0].plot(x, pred, label = "{}".format(n_meas_list[-1]))
     ax[0].set_xlabel("x")
-    ax[0].set_ylabel(r"$u(x)$")
+    ax[0].set_ylabel(r"$u^*(x)$")
     ax[0].set_title("Numerical solution")
 
     ax[1].plot(x, pred - u_values, label = "{}".format(n_meas_list[-1]))
     ax[1].set_xlabel("x")
-    ax[1].set_ylabel(r"$u^\dagger(x) - u(x)$")
+    ax[1].set_ylabel(r"$u^\dagger(x) - u^*(x)$")
     ax[1].set_title("Pointwise error")
 
 

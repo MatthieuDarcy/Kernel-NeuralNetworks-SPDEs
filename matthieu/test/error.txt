@@ -1,3 +1,3 @@
-Best error: 0.0006825493640216039
-Best relative error: 0.0006150350092004981
-Number of measurements: 400
+Best error: 0.06163588307078861
+Best relative error: 0.04974151288852049
+Number of measurements: 160
