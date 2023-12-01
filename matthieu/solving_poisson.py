@@ -236,8 +236,8 @@ for n_meas in n_meas_list:
     print("L^2 Error, Relative  L^2 error :", loss, relative_loss)
 
      # Compute the L^2 error using the second method (for sanity check)
-    loss_2, relative_loss_2 = compute_error_h(pred, coef_u,x, 0)
-    print("L^2 Error, Relative  L^2 error (second method):", loss_2, relative_loss_2)
+    loss, relative_loss = compute_error_h(pred, coef_u,x, 0)
+    print("L^2 Error, Relative  L^2 error (second method):", loss, relative_loss)
 
     # Also compute the error in the H^1 norm
     loss_h, relative_loss_h = compute_error_h(pred, coef_u,x, 1)
