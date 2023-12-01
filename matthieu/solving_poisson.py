@@ -76,6 +76,7 @@ nugget_boundary = args.nugget_boundary
 seed = args.seed
 length_scale = args.length_scale
 n_order = args.n_order
+n_coef = args.n_coef
 
 
 
