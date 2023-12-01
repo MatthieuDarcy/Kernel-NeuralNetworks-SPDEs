@@ -232,7 +232,7 @@ print("Best relative error: ", jnp.min(relative_error_list))
 
 # Estimate the convergence rate
 
-conv_rate = jnp.log(error_list[1:]/error_list[:-1])/jnp.log(n_meas_list[1:]/n_meas_list[:-1])
+conv_rate = -jnp.log(error_list[0]/error_list[-1])/jnp.log(n_meas_list[0]/n_meas_list[-1])
 print("Convergence rate: ", conv_rate)
 
 
