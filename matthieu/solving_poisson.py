@@ -178,6 +178,7 @@ from scipy.special import roots_legendre
 x_q, w_q = roots_legendre(n_order)
 
 # These are to compute the error in the L^2 and H^1 norm (we can afford to go much higher as we only evaluate two functions)
+# The order needs to be very high to ensure the accuracy of the computation of the error
 x_error, w_error = roots_legendre(3000)
 x_error, w_error =  root_interval(x_error, w_error, [0,1])
 # The true solution evaluated at the quadrature points (only required for computing the error)
@@ -284,7 +285,7 @@ log_error = jnp.log(error_list)
 a = jnp.hstack([log_n_meas.reshape(-1, 1), jnp.ones_like(log_n_meas.reshape(-1, 1))])
 b = log_error
 r, C = jnp.linalg.lstsq(a, b)[0]
-r, C = -r.item(), jnp.exp(C).item()
+r, C = jnp.round(-r.item(),3), jnp.round(jnp.exp(C).item(), 3)
 
 # Do the same for the H^1 error
 log_error_h = jnp.log(error_list_h)
@@ -292,7 +293,7 @@ log_error_h = jnp.log(error_list_h)
 a = jnp.hstack([log_n_meas.reshape(-1, 1), jnp.ones_like(log_n_meas.reshape(-1, 1))])
 b = log_error_h
 r_h, C_h = jnp.linalg.lstsq(a, b)[0]
-r_h, C_h = -r_h.item(), jnp.exp(C_h).item()
+r_h, C_h = jnp.round(-r_h.item(),3), jnp.round(jnp.exp(C_h).item(),3)
 
 
 
@@ -311,7 +312,7 @@ with open(save_folder+"error.txt", "w") as f:
 
 # Plot both the error and the relative error for the L^2 norm and the H^1 norm
 fig, ax = plt.subplots(2, 2, figsize=(15, 10))
-ax[0,0].plot(n_meas_list, error_list, label = r"$r$ = {}, C = {}".format(jnp.round(r,3), jnp.round(C, 3)))
+ax[0,0].plot(n_meas_list, error_list, label = r"$r$ = {}, C = {}".format(r, C))
 ax[0,0].scatter(n_meas_list, error_list)
 ax[0,0].set_yscale("log")
 ax[0,0].set_xlabel("Number of measurements")
@@ -319,7 +320,7 @@ ax[0,0].set_ylabel(r"$||u^\dagger - u* ||_{L^2}$")
 ax[0,0].set_title(r"$L^2$ Error")
 ax[0,0].legend()
 
-ax[0,1].plot(n_meas_list, relative_error_list,  label = r"$r$ = {}, C = {}".format(jnp.round(r,3), jnp.round(C, 3)))
+ax[0,1].plot(n_meas_list, relative_error_list,  label = r"$r$ = {}, C = {}".format(r, C))
 ax[0,1].scatter(n_meas_list, relative_error_list)
 ax[0,1].set_yscale("log")
 ax[0,1].set_xlabel("Number of measurements")
@@ -327,7 +328,7 @@ ax[0,1].set_ylabel(r"$\frac{||u^\dagger - u* ||_{L^2}}{|| u* ||_{L^2}}$")
 ax[0,1].set_title(r"Relative $L^2$ Error")
 ax[0,1].legend()
 
-ax[1,0].plot(n_meas_list, error_list_h, label = r"$r$ = {}, C = {}".format(jnp.round(r_h,3), jnp.round(C_h, 3)))
+ax[1,0].plot(n_meas_list, error_list_h, label = r"$r$ = {}, C = {}".format(r_h, C))
 ax[1,0].scatter(n_meas_list, error_list_h)
 ax[1,0].set_yscale("log")
 ax[1,0].set_xlabel("Number of measurements")
@@ -335,7 +336,7 @@ ax[1,0].set_ylabel(r"$||u^\dagger - u* ||_{H^1}$")
 ax[1,0].set_title(r"$H^1$ Error")
 ax[1,0].legend()
 
-ax[1,1].plot(n_meas_list, relative_error_list_h, label = r"$r$ = {}, C = {}".format(jnp.round(r_h,3), jnp.round(C_h, 3)))
+ax[1,1].plot(n_meas_list, relative_error_list_h, label = r"$r$ = {}, C = {}".format(r_h, C_h))
 ax[1,1].scatter(n_meas_list, relative_error_list_h)
 ax[1,1].set_yscale("log")
 ax[1,1].set_xlabel("Number of measurements")
