@@ -142,7 +142,7 @@ plt.savefig(save_folder+"u_f.png")
 
 # Solve the Poisson equation with increasing number of measurements
 
-n_meas_list = jnp.arange(n_meas_min, n_meas_max + 10, 10, dtype=int)
+n_meas_list = jnp.arange(n_meas_min, n_meas_max + 50, 50, dtype=int)
 # Boundary of the domain
 lower, upper = 0.0, 1.0
 length_scale = 0.1
@@ -158,7 +158,7 @@ relative_error_list = []
 pred_list = []
 
 from scipy.special import roots_legendre
-n_order = 50
+n_order = 25
 x_q, w_q = roots_legendre(n_order)
 
 error_list = []
@@ -230,10 +230,13 @@ pred_list = jnp.array(pred_list)
 print("Best error: ", jnp.min(error_list))
 print("Best relative error: ", jnp.min(relative_error_list))
 
-# Estimate the convergence rate
+# Estimate the convergence rate by fitting a line to the log-log plot of the error
+log_error = jnp.log(error_list)
+log_n_meas = jnp.log(n_meas_list)
 
-conv_rate = -jnp.log(error_list[0]/error_list[-1])/jnp.log(n_meas_list[0]/n_meas_list[-1])
-print("Convergence rate: ", conv_rate)
+conv_rate= -jnp.linalg.lstsq(log_increment.reshape(-1, 1), log_error.reshape(-1, 1))[0].item()
+
+print("Convergence rate: ", jnp.round(conv_rate,3)) 
 
 
 # In a file, save the error and the relative error\
