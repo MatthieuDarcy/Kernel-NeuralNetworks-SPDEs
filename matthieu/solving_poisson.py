@@ -181,6 +181,7 @@ x_error, w_error = roots_legendre(2000)
 x_error, w_error =  root_interval(x_error, w_error, [0,1])
 # The true solution evaluated at the quadrature points (only required for computing the error)
 u_error = evaluate_function(x_error, coef_u, L=L)
+print(u_error.shape)
 
 
 error_list = []
