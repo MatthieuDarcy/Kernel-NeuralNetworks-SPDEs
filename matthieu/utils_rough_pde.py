@@ -252,13 +252,14 @@ def compute_h_norm(coef, s, L = 1.0):
     return jnp.sqrt(jnp.sum(coef**2*eigenvalues**s))
 
 
-def compute_error_h(pred_q, true_coef,x_q, w_q, s, L = 1.0):
+def compute_error_h(pred_q, true_q,x_q, w_q, s, L = 1.0):
 
     # Compute the preojection of the prediction on the sine basis
-    coef_pred = compute_projection_sin(x_q, w_q, pred_q, n_coef = true_coef.shape[0], L = 1.0)
+    coef_error = compute_projection_sin(x_q, w_q, pred_q - true_q, n_coef = true_coef.shape[0], L = 1.0)
+    coef_true = compute_projection_sin(x_q, w_q, true_q, n_coef = true_coef.shape[0], L = 1.0)
     # Compute the error between the true coefficients and the predicted coefficients
-    error = compute_h_norm(true_coef - coef_pred, s, L=L)
-    norm_true = compute_h_norm(true_coef, s, L= L)
+    error = compute_h_norm(coef_error, s, L=L)
+    norm_true = compute_h_norm(coef_true, s, L= L)
 
     return error, error/norm_true
 
