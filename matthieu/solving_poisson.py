@@ -241,7 +241,7 @@ for n_meas in n_meas_list:
     pred_error = evaluate_prediction(x_error, c, length_scale, root_psi, psi_matrix, boundary)
 
     # Compute the error between the true solution and the numerical solution
-    loss, relative_loss = compute_error(pred_error, u_error)
+    loss, relative_loss = compute_error(pred_error, u_error, w_error)
     print("L^2 Error, Relative  L^2 error :", loss, relative_loss)
 
      # Compute the L^2 error using the second method (for sanity check)
