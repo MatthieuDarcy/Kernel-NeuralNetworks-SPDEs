@@ -1,5 +1,6 @@
 
 import os
+from pdb import set_trace as bp
 
 # Set JAX to use CPU
 os.environ['JAX_PLATFORM_NAME'] = 'cpu'
@@ -238,6 +239,8 @@ for n_meas in n_meas_list:
     # Compute the numerical solution
     pred = evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary)
     pred_list.append(pred)
+
+    bp()
     # Compute the numerical solution at the quadrature points (for computing the error)
     pred_error = evaluate_prediction(x_error, c, length_scale, root_psi, psi_matrix, boundary)
 
