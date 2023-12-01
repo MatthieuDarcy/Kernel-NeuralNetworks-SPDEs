@@ -234,7 +234,7 @@ print("Best relative error: ", jnp.min(relative_error_list))
 log_error = jnp.log(error_list)
 log_n_meas = jnp.log(n_meas_list)
 
-conv_rate= -jnp.linalg.lstsq(log_increment.reshape(-1, 1), log_error.reshape(-1, 1))[0].item()
+conv_rate= -jnp.linalg.lstsq(log_n_meas.reshape(-1, 1), log_error.reshape(-1, 1))[0].item()
 
 print("Convergence rate: ", jnp.round(conv_rate,3)) 
 
