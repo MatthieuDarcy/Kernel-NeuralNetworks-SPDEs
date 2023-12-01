@@ -178,7 +178,7 @@ from scipy.special import roots_legendre
 x_q, w_q = roots_legendre(n_order)
 
 # These are to compute the error in the L^2 and H^1 norm (we can afford to go much higher as we only evaluate two functions)
-x_error, w_error = roots_legendre(2000)
+x_error, w_error = roots_legendre(3000)
 x_error, w_error =  root_interval(x_error, w_error, [0,1])
 # The true solution evaluated at the quadrature points (only required for computing the error)
 u_error = evaluate_function(x_error, coef_u, L=L)
