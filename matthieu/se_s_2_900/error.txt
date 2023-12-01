@@ -1,13 +1,13 @@
-Best error: 0.00031239542178178434
-Best relative error: 0.0002577515044380331
-Number of measurements: 900
+Best error: 0.0003124486204551714
+Best relative error: 0.00025779539764882794
+Number of measurements: 910
 Arguments of the parser:
 n_meas_max: 900
 s: 2.0
 save_folder: se_s_2_900
 kernel_name: se
 measurement_type: indicator
-n_meas_min: 550
+n_meas_min: 10
 nugget_interior: 1e-07
 nugget_boundary: 1e-12
 seed: 329
