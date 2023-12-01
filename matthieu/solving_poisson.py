@@ -60,6 +60,8 @@ parser.add_argument('--seed', type=int, default=54, help='Seed for the random nu
 parser.add_argument('--length_scale', type=float, default=0.1, help='Length scale of the kernel')
 # add an argument for the order of the quadrature rule
 parser.add_argument('--n_order', type=int, default=50, help='Order of the quadrature rule')
+# add an argument for the number of coefficients
+parser.add_argument('--n_coef', type=int, default=1000, help='Number of coefficients')
 
 args = parser.parse_args()
 
@@ -102,7 +104,6 @@ if not os.path.exists(save_folder):
 # draw random values for the coefficients
 key = random.PRNGKey(seed)
 
-n_coef = 500
 
 
 alpha = 2*s+1 + 0.25
