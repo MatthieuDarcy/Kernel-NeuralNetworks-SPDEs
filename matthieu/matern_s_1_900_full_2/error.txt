@@ -1,3 +1,0 @@
-Best error: 0.000945992668076155
-Best relative error: 0.0007632460005491305
-Number of measurements: 900

@@ -307,6 +307,12 @@ with open(save_folder+"error.txt", "w") as f:
     f.write("Best relative error: {}\n".format(jnp.min(relative_error_list)))
 
     f.write("Number of measurements: {}\n".format(n_meas_list[jnp.argmin(error_list)]))
+    
+    # Save the arguments of the parser
+    f.write("Arguments of the parser:\n")
+    for arg in vars(args):
+        f.write("{}: {}\n".format(arg, getattr(args, arg)))
+        
 
 
 
