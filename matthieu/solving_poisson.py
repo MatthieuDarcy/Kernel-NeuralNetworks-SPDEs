@@ -240,9 +240,10 @@ for n_meas in n_meas_list:
     pred = evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary)
     pred_list.append(pred)
 
-    bp()
+
     # Compute the numerical solution at the quadrature points (for computing the error)
     pred_error = evaluate_prediction(x_error, c, length_scale, root_psi, psi_matrix, boundary)
+    bp()
 
     # Compute the error between the true solution and the numerical solution
     loss, relative_loss = compute_error(pred_error, u_error, w_error)
