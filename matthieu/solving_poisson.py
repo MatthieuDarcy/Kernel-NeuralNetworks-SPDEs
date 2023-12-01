@@ -54,6 +54,12 @@ parser.add_argument('--s', type=float, help='Regularity of the solution')
 parser.add_argument('--save_folder', type=str, help='Folder where to save the results')
 parser.add_argument('--nugget_interior', type=float, default=1e-7, help='Regularization parameter for the interior of the domain')
 parser.add_argument('--nugget_boundary', type=float, default=1e-12, help='Regularization parameter for the boundary of the domain')
+# add an argument for the seed
+parser.add_argument('--seed', type=int, default=54, help='Seed for the random number generator')
+# add an argument for the length scale
+parser.add_argument('--length_scale', type=float, default=0.1, help='Length scale of the kernel')
+# add an argument for the order of the quadrature rule
+parser.add_argument('--n_order', type=int, default=50, help='Order of the quadrature rule')
 
 args = parser.parse_args()
 
@@ -65,6 +71,10 @@ s = args.s
 save_folder = args.save_folder + "/"
 nugget_interior = args.nugget_interior
 nugget_boundary = args.nugget_boundary
+seed = args.seed
+length_scale = args.length_scale
+n_order = args.n_order
+
 
 
 
@@ -81,10 +91,6 @@ elif kernel_name == "matern":
     from utils_rough_pde import *
 else:
     raise ValueError("Kernel name not recognized")
-
-
-
-seed = 54
 
 
 
@@ -146,7 +152,7 @@ increment = 50
 n_meas_list = jnp.arange(n_meas_min, n_meas_max + increment, increment, dtype=int)
 # Boundary of the domain
 lower, upper = 0.0, 1.0
-length_scale = 0.1
+
 boundary = jnp.array([[lower, upper]]).T
 
 print("Nugget interior: ", nugget_interior)
@@ -159,7 +165,6 @@ relative_error_list = []
 pred_list = []
 
 from scipy.special import roots_legendre
-n_order = 75
 x_q, w_q = roots_legendre(n_order)
 
 error_list = []
