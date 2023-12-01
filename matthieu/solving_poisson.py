@@ -159,7 +159,7 @@ relative_error_list = []
 pred_list = []
 
 from scipy.special import roots_legendre
-n_order = 50
+n_order = 100
 x_q, w_q = roots_legendre(n_order)
 
 error_list = []
