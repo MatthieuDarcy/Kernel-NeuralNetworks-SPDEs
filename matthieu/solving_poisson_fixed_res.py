@@ -257,7 +257,7 @@ for i in n_meas_list:
 
 
 
-    f_temp = f_meas[:i+1]
+    f_temp = f_meas[:i]
 
 
     # Construct the RHS of the linear system
