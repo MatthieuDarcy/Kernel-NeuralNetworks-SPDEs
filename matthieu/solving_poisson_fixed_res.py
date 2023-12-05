@@ -243,7 +243,6 @@ else:
 
 
 
-bp()
 # Reorganize the measurements according to the max min ordering
 f_meas = f_meas[max_min_order]
 # Reogarganize the psi matrix according to the max min ordering
@@ -251,7 +250,6 @@ psi_matrix = psi_matrix[max_min_order, :]
 # Reorganize the root psi according to the max min ordering
 root_psi = root_psi[max_min_order, :]
 
-bp()
 
 # Compute the kernel matrix
 print("Constructing the kernel matrix")
