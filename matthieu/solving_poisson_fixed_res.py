@@ -233,6 +233,8 @@ print("Creating max min ordering")
 max_min_order, score = build_max_min_ordering(loc_values[:, None],[loc_values.shape[0]//2])
 max_min_order = jnp.array(max_min_order)
 
+max_min_order = jnp.arange(loc_values.shape[0])
+
 
 # Reorganize the measurements according to the max min ordering
 f_meas = f_meas[max_min_order]
