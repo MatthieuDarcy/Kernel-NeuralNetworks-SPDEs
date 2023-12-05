@@ -14,8 +14,8 @@ print("Default JAX device:", jax.devices()[0])
 
 import matplotlib.pyplot as plt
 
-# from jax.config import config
-# config.update("jax_enable_x64", True)
+from jax.config import config
+config.update("jax_enable_x64", True)
 
 from utils_rough_pde import *
 

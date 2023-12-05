@@ -148,7 +148,6 @@ def build_max_min_ordering(X, initial_points):
     # We include a set of initial points (can be boundary points, chosen at random or whatever). These should be indices of the points in X
     idx_order = initial_points
 
-    print("Initial points: ", idx_order)
     idx_left = jnp.arange(X.shape[0]).tolist()
     # Remove the initial points from the list of points to order
     idx_left = [x for x in idx_left if x not in idx_order]

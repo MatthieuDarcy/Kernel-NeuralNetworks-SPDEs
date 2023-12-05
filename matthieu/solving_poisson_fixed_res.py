@@ -15,8 +15,8 @@ print("Default JAX device:", jax.devices()[0])
 import matplotlib.pyplot as plt
 from utils_rough_pde import *
 
-# from jax.config import config
-# config.update("jax_enable_x64", True)
+from jax.config import config
+config.update("jax_enable_x64", True)
 
 
 
@@ -69,6 +69,7 @@ parser.add_argument('--n_order', type=int, default=50, help='Order of the quadra
 # add an argument for the number of coefficients
 parser.add_argument('--n_coef', type=int, default=1000, help='Number of coefficients')
 parser.add_argument('--n_evaluations', type=int, default=2000, help='Number of evaluations for trapzoidal rule')
+parser.add_argument('--no_max_min', default = False, action=argparse.BooleanOptionalAction, help='Whether to use max min ordering or not')
 
 args = parser.parse_args()
 
@@ -85,6 +86,8 @@ length_scale = args.length_scale
 n_order = args.n_order
 n_coef = args.n_coef
 n_evaluations = args.n_evaluations
+no_max_min = args.no_max_min
+
 
 
 
@@ -229,19 +232,26 @@ f_quad = evaluate_function(root_psi, coef_f, L)
 f_meas = vmap_integrate_f_test_functions(f_quad, psi_matrix)
 
 # Create max min ordering
-print("Creating max min ordering")
-max_min_order, score = build_max_min_ordering(loc_values[:, None],[loc_values.shape[0]//2])
-max_min_order = jnp.array(max_min_order)
+if no_max_min:
+    max_min_order = jnp.arange(loc_values.shape[0])
+else:
+    print("Creating max min ordering")
+    max_min_order, score = build_max_min_ordering(loc_values[:, None],[loc_values.shape[0]//2])
+    max_min_order = jnp.array(max_min_order)
 
-max_min_order = jnp.arange(loc_values.shape[0])
+    
 
 
+
+bp()
 # Reorganize the measurements according to the max min ordering
 f_meas = f_meas[max_min_order]
 # Reogarganize the psi matrix according to the max min ordering
-psi_matrix = psi_matrix[max_min_order]
+psi_matrix = psi_matrix[max_min_order, :]
 # Reorganize the root psi according to the max min ordering
-root_psi = root_psi[max_min_order]
+root_psi = root_psi[max_min_order, :]
+
+bp()
 
 # Compute the kernel matrix
 print("Constructing the kernel matrix")
@@ -276,8 +286,8 @@ for i in n_meas_list:
     # Solve the linear system
     print("Solving the linear system")
     # Select the submatrix of theta corresponding to the current measurements
-    theta_temp = theta[i+2, :i+2]
-    bp()
+    theta_temp = theta[:i+2, :i+2]
+
     c = scipy.linalg.solve(theta_temp + nugget*jnp.eye(theta_temp.shape[0]), Y, assume_a='pos')
 
     # Compute the numerical solution
