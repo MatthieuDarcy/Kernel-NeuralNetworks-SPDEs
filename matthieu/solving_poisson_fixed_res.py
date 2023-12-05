@@ -268,7 +268,7 @@ for i in n_meas_list:
 
 
     # Construct the nugget
-    nugget = jnp.block([nugget_boundary*jnp.ones(shape = 2), nugget_interior*jnp.ones(shape = i)])
+    nugget = jnp.block([nugget_boundary*jnp.ones(shape = 2), nugget_interior*jnp.ones(shape = f_temp.shape[0])])
 
 
 
