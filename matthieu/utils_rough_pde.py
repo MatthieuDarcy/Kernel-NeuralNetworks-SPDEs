@@ -158,7 +158,7 @@ def build_max_min_ordering(X, initial_points):
     dist_temp = dist_matrix[idx_order, :]
     score_list = [ jnp.max(jnp.min(dist_temp, axis = 0), axis = -1).item()]
 
-    for i in range(X.shape[0]-2):
+    for i in range(len(idx_left)):
         best_score = jnp.inf
         best_idx = 0
         for j in range(len(idx_left)):
