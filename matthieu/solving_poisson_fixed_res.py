@@ -19,6 +19,9 @@ from jax.config import config
 config.update("jax_enable_x64", True)
 
 
+from matplotlib.animation import FuncAnimation
+
+
 
 
 
@@ -239,6 +242,10 @@ else:
     max_min_order, score = build_max_min_ordering(loc_values[:, None],[loc_values.shape[0]//2])
     max_min_order = jnp.array(max_min_order)
 
+
+
+
+
     
 
 
@@ -249,6 +256,19 @@ f_meas = f_meas[max_min_order]
 psi_matrix = psi_matrix[max_min_order, :]
 # Reorganize the root psi according to the max min ordering
 root_psi = root_psi[max_min_order, :]
+
+# Create an animation of the ordering
+print("Creating animation of the ordering")
+bump_values = vmap_indicator(x, epsilon_values, loc_values)
+def update(i):
+    ax.plot(x, bump_values[:, 0, max_min_order[i]])
+    ax.set_title(f"Max-min ordering at step {i+1}")
+
+# Initialize the plot
+fig, ax = plt.subplots(figsize = (12,6))
+animation = FuncAnimation(fig, update, frames=len(max_min_order), interval=100, repeat=False)
+# Save the animation
+animation.save(save_folder+"max_min_ordering.gif", writer='ffmpeg', fps=5, dpi = 150)
 
 
 # Compute the kernel matrix
