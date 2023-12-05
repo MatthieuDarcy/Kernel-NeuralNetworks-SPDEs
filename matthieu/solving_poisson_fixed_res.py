@@ -266,7 +266,8 @@ def update(i):
 
 # Initialize the plot
 fig, ax = plt.subplots(figsize = (12,6))
-animation = FuncAnimation(fig, update, frames=len(max_min_order), interval=100, repeat=False)
+animation = FuncAnimation(fig, update, frames=len(max_min_order), interval=10, repeat=False)
+print("Saving animation")
 # Save the animation
 animation.save(save_folder+"max_min_ordering.gif", writer='ffmpeg', fps=5, dpi = 150)
 
