@@ -233,7 +233,6 @@ print("Creating max min ordering")
 max_min_order, score = build_max_min_ordering(loc_values[:, None],[loc_values.shape[0]//2])
 max_min_order = jnp.array(max_min_order)
 
-bp()
 
 # Reorganize the measurements according to the max min ordering
 f_meas = f_meas[max_min_order]
@@ -275,7 +274,8 @@ for i in n_meas_list:
     # Solve the linear system
     print("Solving the linear system")
     # Select the submatrix of theta corresponding to the current measurements
-    theta_temp = theta[i+1, :i+1]
+    theta_temp = theta[i+2, :i+2]
+    bp()
     c = scipy.linalg.solve(theta_temp + nugget*jnp.eye(theta_temp.shape[0]), Y, assume_a='pos')
 
     # Compute the numerical solution
