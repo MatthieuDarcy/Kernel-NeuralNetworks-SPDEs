@@ -202,9 +202,7 @@ pred_list = []
 epsilon_values =  jnp.array([1/(n_meas_max*2)])
 # Construct the measurements
 loc_values = jnp.linspace(lower + epsilon_values[0], upper - epsilon_values[0],  int(L/(2*epsilon_values[0])))
-# Permute the location values 
-loc_values = random.permutation(key, loc_values)
-print("Location values: ", loc_values)
+
 
 support = jnp.array([loc_values - epsilon_values[0], loc_values + epsilon_values[0]]).T
 vol = support[:,1] - support[:,0]
