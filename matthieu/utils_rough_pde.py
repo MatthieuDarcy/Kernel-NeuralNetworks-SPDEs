@@ -151,8 +151,8 @@ def build_max_min_ordering(X, initial_points):
     print("Initial points: ", idx_order)
     idx_left = jnp.arange(X.shape[0]).tolist()
     # Remove the initial points from the list of points to order
-    idx_left = list(set(idx_left) - set(idx_order))
-    print(idx_left)
+    idx_left = [x for x in idx_left if x not in idx_order]
+
 
     # Compute the current max min distance 
     dist_temp = dist_matrix[idx_order, :]
