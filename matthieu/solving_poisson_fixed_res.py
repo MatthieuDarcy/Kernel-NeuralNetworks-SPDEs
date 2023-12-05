@@ -231,6 +231,8 @@ f_meas = vmap_integrate_f_test_functions(f_quad, psi_matrix)
 # Create max min ordering
 max_min_order, score = build_max_min_ordering(loc_values[:, None],[loc_values.shape[0]//2])
 
+bp()
+
 # Reorganize the measurements according to the max min ordering
 f_meas = f_meas[max_min_order]
 # Reogarganize the psi matrix according to the max min ordering
