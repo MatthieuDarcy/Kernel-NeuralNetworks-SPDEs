@@ -13,11 +13,10 @@ import jax
 print("Default JAX device:", jax.devices()[0])
 
 import matplotlib.pyplot as plt
+from utils_rough_pde import *
 
 # from jax.config import config
 # config.update("jax_enable_x64", True)
-
-from utils_rough_pde import *
 
 
 
@@ -96,6 +95,7 @@ n_evaluations = args.n_evaluations
 ############################################
 
 
+
 if kernel_name == "se":
     print("Using SE kernel")
     from utilities_kernel_se import *
@@ -104,6 +104,7 @@ elif kernel_name == "matern":
     from utilities_kernel_matern import *
 else:
     raise ValueError("Kernel name not recognized")
+
 
 
 
@@ -161,8 +162,8 @@ plt.savefig(save_folder+"u_f.png")
 
 # Solve the Poisson equation with increasing number of measurements
 
-increment = 50
-n_meas_list = jnp.arange(n_meas_min, n_meas_max + increment, increment, dtype=int)
+
+
 # Boundary of the domain
 lower, upper = 0.0, 1.0
 
@@ -196,57 +197,96 @@ error_list_h = []
 relative_error_list_h = []
 
 pred_list = []
-for n_meas in n_meas_list:
-
-    # Construct the measurements
-    epsilon_values =  jnp.array([1/(n_meas*2)])
-    loc_values = jnp.linspace(lower + epsilon_values[0], upper - epsilon_values[0],  int(L/(2*epsilon_values[0])))
-    support = jnp.array([loc_values - epsilon_values[0], loc_values + epsilon_values[0]]).T
-    vol = support[:,1] - support[:,0]
-    N_test_functions = loc_values.shape[0]
-
-    print("Number of test functions: ", N_test_functions)
 
 
-    root_psi, w_psi = vmap_root_interval(x_q, w_q, support)
+epsilon_values =  jnp.array([1/(n_meas_max*2)])
+# Construct the measurements
+loc_values = jnp.linspace(lower + epsilon_values[0], upper - epsilon_values[0],  int(L/(2*epsilon_values[0])))
+# Permute the location values 
+loc_values = random.permutation(key, loc_values)
+print("Location values: ", loc_values)
 
-    # Construct the mmatrix of weighted measurement functions 
-    if measurement_type == "indicator":
-        psi_matrix = indicator_vector(root_psi, epsilon_values, loc_values)
-    elif measurement_type == "bump":
-        psi_matrix = bump_vector(root_psi, epsilon_values, loc_values)
-    else:
-        # Raise an error
-        print("Measurement type not recognized")
-        break
+support = jnp.array([loc_values - epsilon_values[0], loc_values + epsilon_values[0]]).T
+vol = support[:,1] - support[:,0]
+N_test_functions = loc_values.shape[0]
+print("Total number of test functions: ", N_test_functions)
 
-    psi_matrix = psi_matrix * w_psi
+# Create a random permutation of the indices
+key = random.PRNGKey(333)
+all_idx = jnp.arange(N_test_functions)
+all_idx = random.permutation(key, all_idx)
+print(all_idx)
 
-    # Compute the RHS of the linear system
-    f_quad = evaluate_function(root_psi, coef_f, L)
-    f_meas = vmap_integrate_f_test_functions(f_quad, psi_matrix)
+root_psi, w_psi = vmap_root_interval(x_q, w_q, support)
+
+# Construct the mmatrix of weighted measurement functions 
+if measurement_type == "indicator":
+    psi_matrix = indicator_vector(root_psi, epsilon_values, loc_values)
+elif measurement_type == "bump":
+    psi_matrix = bump_vector(root_psi, epsilon_values, loc_values)
+else:
+    # Raise an error
+    print("Measurement type not recognized")
+    
+
+psi_matrix = psi_matrix * w_psi
+# Compute the RHS of the linear system
+f_quad = evaluate_function(root_psi, coef_f, L)
+f_meas = vmap_integrate_f_test_functions(f_quad, psi_matrix)
+
+# Create max min ordering
+max_min_order, score = build_max_min_ordering(loc_values[:, None],[loc_values.shape[0]//2])
+
+# Reorganize the measurements according to the max min ordering
+f_meas = f_meas[max_min_order]
+# Reogarganize the psi matrix according to the max min ordering
+psi_matrix = psi_matrix[max_min_order]
+# Reorganize the root psi according to the max min ordering
+root_psi = root_psi[max_min_order]
+
+# Compute the kernel matrix
+print("Constructing the kernel matrix")
+theta = construct_theta(boundary,psi_matrix, root_psi, length_scale)
+
+increment = 25
+n_meas_list = jnp.arange(n_meas_min, n_meas_max + increment, increment, dtype=int)
+n_meas_list = n_meas_list.at[-1].set(n_meas_max)
+
+
+
+
+for i in n_meas_list:
+
+
+
+    f_temp = f_meas[:i+1]
+
 
     # Construct the RHS of the linear system
-    Y = jnp.block([jnp.zeros(shape = 2), f_meas])
+    Y = jnp.block([jnp.zeros(shape = 2), f_temp])
 
-    # Compute the kernel matrix
-    print("Constructing the kernel matrix")
-    theta = construct_theta(boundary,psi_matrix, root_psi, length_scale)
+    print("Number of measurements: ", Y.shape[0]-1)
+
+
 
     # Construct the nugget
-    nugget = jnp.block([nugget_boundary*jnp.ones(shape = 2), nugget_interior*jnp.ones(shape = N_test_functions)])
+    nugget = jnp.block([nugget_boundary*jnp.ones(shape = 2), nugget_interior*jnp.ones(shape = i)])
+
+
 
     # Solve the linear system
     print("Solving the linear system")
-    c = scipy.linalg.solve(theta + nugget*jnp.eye(theta.shape[0]), Y, assume_a='pos')
+    # Select the submatrix of theta corresponding to the current measurements
+    theta_temp = theta[i+1, :i+1]
+    c = scipy.linalg.solve(theta_temp + nugget*jnp.eye(theta_temp.shape[0]), Y, assume_a='pos')
 
     # Compute the numerical solution
-    pred = evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary)
+    pred = evaluate_prediction(x, c, length_scale, root_psi[:i], psi_matrix[:i], boundary)
     pred_list.append(pred)
 
 
     # Compute the numerical solution at the quadrature points (for computing the error)
-    pred_error = evaluate_prediction(x_error, c, length_scale, root_psi, psi_matrix, boundary)
+    pred_error = evaluate_prediction(x_error, c, length_scale, root_psi[:i], psi_matrix[:i], boundary)
 
 
     # Compute the error between the true solution and the numerical solution
