@@ -269,7 +269,7 @@ fig, ax = plt.subplots(figsize = (12,6))
 animation = FuncAnimation(fig, update, frames=len(max_min_order), interval=10, repeat=False)
 print("Saving animation")
 # Save the animation
-animation.save(save_folder+"max_min_ordering.gif", fps=5, dpi = 150)
+animation.save(save_folder+"max_min_ordering.mpa4", writer='ffmpeg', fps=5, dpi = 150)
 
 
 # Compute the kernel matrix
