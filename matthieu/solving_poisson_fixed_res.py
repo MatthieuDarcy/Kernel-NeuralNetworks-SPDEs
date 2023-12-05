@@ -229,7 +229,9 @@ f_quad = evaluate_function(root_psi, coef_f, L)
 f_meas = vmap_integrate_f_test_functions(f_quad, psi_matrix)
 
 # Create max min ordering
+print("Creating max min ordering")
 max_min_order, score = build_max_min_ordering(loc_values[:, None],[loc_values.shape[0]//2])
+max_min_order = jnp.array(max_min_order)
 
 bp()
 
