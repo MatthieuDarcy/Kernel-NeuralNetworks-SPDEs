@@ -211,11 +211,7 @@ vol = support[:,1] - support[:,0]
 N_test_functions = loc_values.shape[0]
 print("Total number of test functions: ", N_test_functions)
 
-# Create a random permutation of the indices
-key = random.PRNGKey(333)
-all_idx = jnp.arange(N_test_functions)
-all_idx = random.permutation(key, all_idx)
-print(all_idx)
+
 
 root_psi, w_psi = vmap_root_interval(x_q, w_q, support)
 
