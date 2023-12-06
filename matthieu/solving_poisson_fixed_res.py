@@ -265,12 +265,12 @@ if create_animation:
         ax.plot(x, bump_values[:, 0, max_min_order[i]])
         ax.set_title(f"Max-min ordering at step {i+1}")
 
-# Initialize the plot
-fig, ax = plt.subplots(figsize = (12,6))
-animation = FuncAnimation(fig, update, frames=len(max_min_order), interval=10, repeat=False)
-print("Saving animation")
-# Save the animation
-animation.save(save_folder+"max_min_ordering.mp4", writer='ffmpeg', fps=5, dpi = 150)
+    # Initialize the plot
+    fig, ax = plt.subplots(figsize = (12,6))
+    animation = FuncAnimation(fig, update, frames=len(max_min_order), interval=10, repeat=False)
+    print("Saving animation")
+    # Save the animation
+    animation.save(save_folder+"max_min_ordering.mp4", writer='ffmpeg', fps=5, dpi = 150)
 
 
 # Compute the kernel matrix
