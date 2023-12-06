@@ -7,7 +7,7 @@ s: 1.0
 save_folder: matern_s_1_900_l_1
 kernel_name: matern
 measurement_type: indicator
-n_meas_min: 500
+n_meas_min: 550
 nugget_interior: 1e-07
 nugget_boundary: 1e-12
 seed: 54
