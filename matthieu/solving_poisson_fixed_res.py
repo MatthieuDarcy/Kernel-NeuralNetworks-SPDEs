@@ -74,6 +74,9 @@ parser.add_argument('--n_coef', type=int, default=1000, help='Number of coeffici
 parser.add_argument('--n_evaluations', type=int, default=2000, help='Number of evaluations for trapzoidal rule')
 parser.add_argument('--no_max_min', default = False, action=argparse.BooleanOptionalAction, help='Whether to use max min ordering or not')
 
+# Add an option to create an animation 
+parser.add_argument('--animation', default = False, action=argparse.BooleanOptionalAction, help='Whether to create an animation of the max min ordering or not')
+
 args = parser.parse_args()
 
 kernel_name = args.kernel_name
@@ -90,6 +93,7 @@ n_order = args.n_order
 n_coef = args.n_coef
 n_evaluations = args.n_evaluations
 no_max_min = args.no_max_min
+create_animation = args.animation
 
 
 
@@ -254,11 +258,12 @@ psi_matrix = psi_matrix[max_min_order, :]
 root_psi = root_psi[max_min_order, :]
 
 # Create an animation of the ordering
-print("Creating animation of the ordering")
-bump_values = vmap_indicator(x, epsilon_values, loc_values)
-def update(i):
-    ax.plot(x, bump_values[:, 0, max_min_order[i]])
-    ax.set_title(f"Max-min ordering at step {i+1}")
+if create_animation:
+    print("Creating animation of the ordering")
+    bump_values = vmap_indicator(x, epsilon_values, loc_values)
+    def update(i):
+        ax.plot(x, bump_values[:, 0, max_min_order[i]])
+        ax.set_title(f"Max-min ordering at step {i+1}")
 
 # Initialize the plot
 fig, ax = plt.subplots(figsize = (12,6))
