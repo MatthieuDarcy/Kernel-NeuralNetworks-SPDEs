@@ -1,5 +1,5 @@
-Best error: 0.0010650124279020176
-Best relative error: 0.00081431794479005
+Best error: 0.0010650124275827055
+Best relative error: 0.0008143179445459012
 Number of measurements: 300
 Arguments of the parser:
 n_meas_max: 300
@@ -15,4 +15,4 @@ length_scale: 0.1
 n_order: 50
 n_coef: 1000
 n_evaluations: 2000
-no_max_min: True
+no_max_min: False

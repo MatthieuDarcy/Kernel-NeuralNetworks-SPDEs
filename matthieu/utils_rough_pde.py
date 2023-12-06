@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from jax import vmap
 from jax import jit
 from jax import hessian
+from jax import random
 import math
 
 
@@ -147,38 +148,28 @@ def build_max_min_ordering(X, initial_points):
 
     # We include a set of initial points (can be boundary points, chosen at random or whatever). These should be indices of the points in X
     idx_order = initial_points
-
-    idx_left = jnp.arange(X.shape[0]).tolist()
-    # Remove the initial points from the list of points to order
-    idx_left = [x for x in idx_left if x not in idx_order]
+    #idx_left = jnp.setdiff1d(jnp.arange(X.shape[0]), jnp.array(idx_order)).tolist()
+    key = random.PRNGKey(23)
 
 
-    # Compute the current max min distance 
-    dist_temp = dist_matrix[idx_order, :]
-    score_list = [ jnp.max(jnp.min(dist_temp, axis = 0), axis = -1).item()]
 
-    for i in range(len(idx_left)):
-        best_score = jnp.inf
-        best_idx = 0
-        for j in range(len(idx_left)):
-            current_idx = idx_left[j]
-            temp_idx =idx_order.copy()
-            temp_idx.append(current_idx)
-            dist_temp = dist_matrix[temp_idx, :]
+    for i in range(X.shape[0] - len(initial_points)):
+        key, subkey = random.split(key)
+        # Compute the current max min distance
+        dist_temp = dist_matrix[idx_order, :]
+        dist_temp = jnp.min(dist_temp, axis = 0)
+        #print(dist_temp)
 
-            
-            current_score = jnp.max(jnp.min(dist_temp, axis = 0), axis = -1)
-            if current_score < best_score:
-                best_score = current_score
-                best_j = j
+        # Find all the points that maximizes the min distance
+        max_values = dist_temp.max()
+        max_indices = jnp.where(dist_temp == max_values)[0]
+        # Select one at random
+        best_j = random.choice(subkey, max_indices).item()
+        idx_order.append(best_j)
 
-        # Add the current score to the list
-        score_list.append(best_score.item())
-        # Add the selected point to the ordering
-        idx_order.append(idx_left[best_j])
-        # Remove the selected point from the distance matrix
-        idx_left.remove(idx_left[best_j])
-    return idx_order, score_list
+        
+
+    return jnp.array(idx_order)
 
 
 

@@ -239,14 +239,10 @@ if no_max_min:
     max_min_order = jnp.arange(loc_values.shape[0])
 else:
     print("Creating max min ordering")
-    max_min_order, score = build_max_min_ordering(loc_values[:, None],[loc_values.shape[0]//2])
-    max_min_order = jnp.array(max_min_order)
+    loc_values_boundary = jnp.hstack([jnp.array([lower, upper]), loc_values])
+    max_min_order = build_max_min_ordering(loc_values_boundary[:, None],[0,1])
+    max_min_order = max_min_order[2:] -2
 
-
-
-
-
-    
 
 
 
