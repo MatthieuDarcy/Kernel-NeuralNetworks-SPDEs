@@ -447,6 +447,8 @@ plt.savefig(save_folder+"final_numerical_solution.png")
 
 
 if create_animation:
+    print("Creating animation of the results")
+
     fig, ax = plt.subplots(3,1, figsize = (12,10))
 
     def update(i):
