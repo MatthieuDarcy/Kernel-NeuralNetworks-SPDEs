@@ -278,7 +278,7 @@ if create_animation:
 print("Constructing the kernel matrix")
 theta = construct_theta(boundary,psi_matrix, root_psi, length_scale)
 
-increment = 50
+increment = 10
 n_meas_list = jnp.arange(n_meas_min, n_meas_max + increment, increment, dtype=int)
 n_meas_list = n_meas_list.at[-1].set(n_meas_max)
 

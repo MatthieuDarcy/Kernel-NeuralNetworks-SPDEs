@@ -261,7 +261,7 @@ theta_evaluate_pointwise = jnp.block([vmap_kernel(x, boundary, length_scale), vm
 theta_error = jnp.block([vmap_kernel(x_error, boundary, length_scale), vmap_kernel_laplacian_y(x_error, loc_values[max_min_order], length_scale)])
 
 
-increment = 50
+increment = 10
 n_meas_list = jnp.arange(n_meas_min, n_meas_max + increment, increment, dtype=int)
 n_meas_list = n_meas_list.at[-1].set(n_meas_max)
 
