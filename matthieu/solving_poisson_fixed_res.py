@@ -66,7 +66,7 @@ parser.add_argument('--nugget_boundary', type=float, default=1e-12, help='Regula
 # add an argument for the seed
 parser.add_argument('--seed', type=int, default=54, help='Seed for the random number generator')
 # add an argument for the length scale
-parser.add_argument('--length_scale', type=float, default=0.1, help='Length scale of the kernel')
+parser.add_argument('--length_scale', type=float, default=1.0, help='Length scale of the kernel')
 # add an argument for the order of the quadrature rule
 parser.add_argument('--n_order', type=int, default=50, help='Order of the quadrature rule')
 # add an argument for the number of coefficients
@@ -207,6 +207,7 @@ error_list_h = []
 relative_error_list_h = []
 
 pred_list = []
+meas_list = []
 
 
 epsilon_values =  jnp.array([1/(n_meas_max*2)])
@@ -285,23 +286,14 @@ n_meas_list = n_meas_list.at[-1].set(n_meas_max)
 
 
 for i in n_meas_list:
-
-
-
     f_temp = f_meas[:i]
-
 
     # Construct the RHS of the linear system
     Y = jnp.block([jnp.zeros(shape = 2), f_temp])
-
     print("Number of measurements: ", Y.shape[0]-1)
-
-
 
     # Construct the nugget
     nugget = jnp.block([nugget_boundary*jnp.ones(shape = 2), nugget_interior*jnp.ones(shape = f_temp.shape[0])])
-
-
 
     # Solve the linear system
     print("Solving the linear system")
@@ -314,9 +306,13 @@ for i in n_meas_list:
     pred = evaluate_prediction(x, c, length_scale, root_psi[:i], psi_matrix[:i], boundary)
     pred_list.append(pred)
 
-
     # Compute the numerical solution at the quadrature points (for computing the error)
     pred_error = evaluate_prediction(x_error, c, length_scale, root_psi[:i], psi_matrix[:i], boundary)
+
+    # Compute the measurements of the numerical solution
+    theta_eval = theta[:, :i+2]
+    temp = theta_eval@c
+    meas_list.append(temp)
 
 
     # Compute the error between the true solution and the numerical solution
@@ -346,6 +342,7 @@ error_list_h = jnp.array(error_list_h)
 relative_error_list_h = jnp.array(relative_error_list_h)
 
 pred_list = jnp.array(pred_list)
+meas_list = jnp.array(meas_list)
 
 
 print("Best error: ", jnp.min(error_list))
@@ -463,5 +460,33 @@ ax[0].legend()
 ax[1].legend()
 
 plt.savefig(save_folder+"final_numerical_solution.png")
+
+
+
+if create_animation:
+    fig, ax = plt.subplots(3,1, figsize = (12,10))
+
+    def update(i):
+            idx = n_meas_list[i]
+            ax[0].clear()
+            ax[0].scatter(loc_values[max_min_order], f_meas, label = 'true', s = 3, color = "blue")
+            ax[0].scatter(loc_values[max_min_order], meas_list[i, 2:], label = 'prediction', s = 3, color = "green")
+            ax[0].scatter(loc_values[max_min_order[:idx]], meas_list[i, 2:idx+2], label = 'training points', color = 'red', s = 3)
+            ax[0].legend()
+            ax[0].set_title(f"Prediction of the measurements with {n_meas_list[i]} data points")
+
+            ax[1].clear()
+            ax[1].plot(x, pred_list[i], label = 'pred')
+            ax[1].plot(x, u_values, label = 'true')
+            ax[1].set_title("Prediction with  {} pointwise evaluation of the RHS".format(n_meas_list[i]))
+            ax[1].legend()
+
+            ax[2].clear()
+            ax[2].plot(x, pred_list[i] - u_values)
+            ax[2].set_title("Pointwise error with  {} pointwise evaluation of the RHS".format(n_meas_list[i]))
+    # Create an animation of the the rhs, the solution and the pointwise error
+
+    animation = FuncAnimation(fig, update, frames=len(n_meas_list), interval=500, repeat=False)
+    animation.save(save_folder+"results.mp4", writer='ffmpeg', fps=2, dpi = 150)
 
 

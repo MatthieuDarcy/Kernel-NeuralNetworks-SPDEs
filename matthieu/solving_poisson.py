@@ -69,7 +69,7 @@ parser.add_argument('--length_scale', type=float, default=0.1, help='Length scal
 parser.add_argument('--n_order', type=int, default=50, help='Order of the quadrature rule')
 # add an argument for the number of coefficients
 parser.add_argument('--n_coef', type=int, default=1000, help='Number of coefficients')
-parser.add_argument('--n_evaluations', type=int, default=2000, help='Number of evaluations for trapzoidal rule')
+parser.add_argument('--n_evaluations', type=int, default=2000, help='Order of the quadrature for the error computation')
 
 args = parser.parse_args()
 

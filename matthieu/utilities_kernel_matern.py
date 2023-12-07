@@ -59,6 +59,11 @@ vmap_hess_one_kernel_row = jit(vmap(neg_laplacian_x, in_axes=(None, 0, None)))
 # Vectorize the above result over the first argument x
 vmap_kernel_laplacian = jit(vmap(vmap_hess_one_kernel_row, in_axes=(0, None, None)))
 
+# Vectorize the gradient computation over the second argument y
+vmap_hess_one_kernel_row_y = jit(vmap(neg_laplacian_y, in_axes=(None, 0, None)))
+# Vectorize the above result over the first argument x
+vmap_kernel_laplacian_y = jit(vmap(vmap_hess_one_kernel_row_y, in_axes=(0, None, None)))
+
 
 # Vectorize the gradient computation over the second argument y
 vmap_hess_kernel_row = jit(vmap(double_neg_laplacian, in_axes=(None, 0, None)))
@@ -74,6 +79,9 @@ vmap_matern_laplacian_kernel_matrix = jit(vmap(vmap_matern_laplacian_first_vecto
 def compute_K_double_laplacian_pairwise(vector1, vector2, length_scale):
     # The resulting matrix will have shape (d, d)
     return vmap_matern_laplacian_kernel_matrix(vector1, vector2, length_scale)
+
+
+
 
 
 ########################################################################################################################
