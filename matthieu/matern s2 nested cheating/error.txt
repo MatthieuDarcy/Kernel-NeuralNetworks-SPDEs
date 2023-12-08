@@ -1,5 +1,5 @@
-Best error: 0.01143396434332407
-Best relative error: 0.07906251019236936
+Best error: 0.014948877982264672
+Best relative error: 0.10336710718600045
 Number of measurements: 10
 Arguments of the parser:
 n_meas_max: 10
