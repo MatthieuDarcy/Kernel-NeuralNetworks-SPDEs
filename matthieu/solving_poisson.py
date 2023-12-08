@@ -71,6 +71,9 @@ parser.add_argument('--n_order', type=int, default=50, help='Order of the quadra
 parser.add_argument('--n_coef', type=int, default=1000, help='Number of coefficients')
 parser.add_argument('--n_evaluations', type=int, default=2000, help='Order of the quadrature for the error computation')
 
+parser.add_argument('--cheat',  default = False, action=argparse.BooleanOptionalAction, help='Whether to "cheat" for the computation of the rhs')
+
+
 args = parser.parse_args()
 
 kernel_name = args.kernel_name
@@ -86,6 +89,7 @@ length_scale = args.length_scale
 n_order = args.n_order
 n_coef = args.n_coef
 n_evaluations = args.n_evaluations
+cheat = args.cheat
 
 
 
@@ -223,8 +227,12 @@ for n_meas in n_meas_list:
     psi_matrix = psi_matrix * w_psi
 
     # Compute the RHS of the linear system
-    f_quad = evaluate_function(root_psi, coef_f, L)
-    f_meas = vmap_integrate_f_test_functions(f_quad, psi_matrix)
+    if cheat:
+        print("Cheating for the computation of the RHS")
+        f_meas =  evaluate_function(loc_values, coef_f, L)
+    else:
+        f_quad = evaluate_function(root_psi, coef_f, L)
+        f_meas = vmap_integrate_f_test_functions(f_quad, psi_matrix)
 
     # Construct the RHS of the linear system
     Y = jnp.block([jnp.zeros(shape = 2), f_meas])
