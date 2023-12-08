@@ -236,8 +236,22 @@ else:
 
 psi_matrix = psi_matrix * w_psi
 # Compute the RHS of the linear system
-f_quad = evaluate_function(root_psi, coef_f, L)
-f_meas = vmap_integrate_f_test_functions(f_quad, psi_matrix)
+
+# Evaluate the RHS at a finer resolution then the kernel
+x_f, w_f = roots_legendre(n_order*3)
+root_f, w_psi_f = vmap_root_interval(x_f, w_f, support)
+# Construct the mmatrix of weighted measurement functions 
+if measurement_type == "indicator":
+    psi_f = indicator_vector(root_f, epsilon_values, loc_values)
+elif measurement_type == "bump":
+    psi_f = bump_vector(root_f, epsilon_values, loc_values)
+else:
+    # Raise an error
+    print("Measurement type not recognized")
+
+f_quad = evaluate_function(root_f, coef_f, L)
+print(f_quad.shape)
+f_meas = vmap_integrate_f_test_functions(f_quad, psi_f)
 
 # Create max min ordering
 if no_max_min:
