@@ -234,7 +234,7 @@ for i in n_meas_list:
         f_meas =  evaluate_function(loc_values, coef_f, L)
     else:
         # For the computation of the RHS, we use a finer quadrature rule
-        x_f, w_f = roots_legendre(n_order*3)
+        x_f, w_f = roots_legendre(n_order)
         root_f, w_f = vmap_root_interval(x_f, w_f, support)
         if measurement_type == "indicator":
             psi_f = indicator_vector(root_f, epsilon_values, loc_values)
