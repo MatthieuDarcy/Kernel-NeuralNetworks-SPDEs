@@ -64,7 +64,7 @@ parser.add_argument('--nugget_boundary', type=float, default=1e-12, help='Regula
 # add an argument for the seed
 parser.add_argument('--seed', type=int, default=54, help='Seed for the random number generator')
 # add an argument for the length scale
-parser.add_argument('--length_scale', type=float, default=0.1, help='Length scale of the kernel')
+parser.add_argument('--length_scale', type=float, default=1.0, help='Length scale of the kernel')
 # add an argument for the order of the quadrature rule
 parser.add_argument('--n_order', type=int, default=50, help='Order of the quadrature rule')
 # add an argument for the number of coefficients
