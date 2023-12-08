@@ -1,0 +1,18 @@
+Best error: 0.01143396434332407
+Best relative error: 0.07906251019236936
+Number of measurements: 10
+Arguments of the parser:
+n_meas_max: 10
+s: 2.0
+save_folder: matern s2 nested pointwise
+kernel_name: matern
+measurement_type: indicator
+n_meas_min: 0
+nugget_interior: 1e-07
+nugget_boundary: 1e-12
+seed: 1110
+length_scale: 1.0
+n_order: 30
+n_coef: 5000
+n_evaluations: 2000
+cheat: False
