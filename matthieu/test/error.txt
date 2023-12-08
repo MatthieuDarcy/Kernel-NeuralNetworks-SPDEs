@@ -1,6 +1,6 @@
-Best error: 0.008525972966572402
-Best relative error: 0.0719576085070457
-Number of measurements: 6
+Best error: 0.080969287641038
+Best relative error: 0.6833655612106039
+Number of measurements: 2
 Arguments of the parser:
 n_meas_max: 6
 s: 2.0

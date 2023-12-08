@@ -221,22 +221,26 @@ for i in n_meas_list:
     theta = jnp.block([[theta_11, theta_12], [theta_12.T, theta_22]])
 
     theta_evaluate_pointwise = jnp.block([vmap_kernel(x, boundary, length_scale), vmap_kernel_laplacian_y(x, diracs, length_scale)])
-    theta_error = jnp.block([vmap_kernel(x_error, diracs, length_scale), vmap_kernel_laplacian_y(x_error, diracs, length_scale)])
+    theta_error = jnp.block([vmap_kernel(x_error, boundary, length_scale), vmap_kernel_laplacian_y(x_error, diracs, length_scale)])
 
     # Construct the nugget
     nugget = jnp.block([nugget_boundary*jnp.ones(shape = 2), nugget_interior*jnp.ones(shape = N_test_functions)])
 
     # Solve the linear system
     print("Solving the linear system")
-    c = scipy.linalg.solve(theta + nugget*jnp.eye(theta.shape[0]), Y, assume_a='pos')
+    alpha = scipy.linalg.solve(theta + nugget*jnp.eye(theta.shape[0]), Y, assume_a='pos')
+
+    
 
     # Compute the numerical solution
-    pred = theta_evaluate_pointwise@c
+    pred = theta_evaluate_pointwise@alpha
     pred_list.append(pred)
 
 
+
+
     # Compute the numerical solution at the quadrature points (for computing the error)
-    pred_error = theta_error@c
+    pred_error = theta_error@alpha
 
 
     # Compute the error between the true solution and the numerical solution
