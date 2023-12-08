@@ -233,8 +233,15 @@ for i in n_meas_list:
         print("Cheating for the computation of the RHS")
         f_meas =  evaluate_function(loc_values, coef_f, L)
     else:
-        f_quad = evaluate_function(root_psi, coef_f, L)
-        f_meas = vmap_integrate_f_test_functions(f_quad, psi_matrix)
+        # For the computation of the RHS, we use a finer quadrature rule
+        x_f, w_f = roots_legendre(n_order*3)
+        root_f, w_f = vmap_root_interval(x_f, w_f, support)
+        if measurement_type == "indicator":
+            psi_f = indicator_vector(root_f, epsilon_values, loc_values)
+        elif measurement_type == "bump":
+            psi_f = bump_vector(root_f, epsilon_values, loc_values)
+        f_quad = evaluate_function(root_f, coef_f, L)
+        f_meas = vmap_integrate_f_test_functions(f_quad, psi_f)
 
     # Construct the RHS of the linear system
     Y = jnp.block([jnp.zeros(shape = 2), f_meas])
