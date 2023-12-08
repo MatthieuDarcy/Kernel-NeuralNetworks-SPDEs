@@ -249,6 +249,7 @@ else:
     # Raise an error
     print("Measurement type not recognized")
 
+psi_f = psi_f * w_psi_f
 f_quad = evaluate_function(root_f, coef_f, L)
 print(f_quad.shape)
 f_meas = vmap_integrate_f_test_functions(f_quad, psi_f)
