@@ -166,7 +166,7 @@ plt.savefig(save_folder+"u_f.png")
 # Solve the Poisson equation with increasing number of measurements
 
 
-n_meas_list = jnp.arange(n_meas_min, n_meas_max +1)
+n_meas_list = jnp.arange(n_meas_min+1, n_meas_max +1)
 # Boundary of the domain
 lower, upper = 0.0, 1.0
 
