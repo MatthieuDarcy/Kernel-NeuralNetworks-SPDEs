@@ -13,13 +13,11 @@ import jax
 print("Default JAX device:", jax.devices()[0])
 
 import matplotlib.pyplot as plt
-from utils_rough_pde import *
 
 from jax.config import config
 config.update("jax_enable_x64", True)
 
-
-from matplotlib.animation import FuncAnimation
+from utils_rough_pde import *
 
 
 
@@ -66,16 +64,12 @@ parser.add_argument('--nugget_boundary', type=float, default=1e-12, help='Regula
 # add an argument for the seed
 parser.add_argument('--seed', type=int, default=54, help='Seed for the random number generator')
 # add an argument for the length scale
-parser.add_argument('--length_scale', type=float, default=1.0, help='Length scale of the kernel')
+parser.add_argument('--length_scale', type=float, default=0.1, help='Length scale of the kernel')
 # add an argument for the order of the quadrature rule
 parser.add_argument('--n_order', type=int, default=50, help='Order of the quadrature rule')
 # add an argument for the number of coefficients
 parser.add_argument('--n_coef', type=int, default=1000, help='Number of coefficients')
-parser.add_argument('--n_evaluations', type=int, default=2000, help='Number of evaluations for trapzoidal rule')
-parser.add_argument('--no_max_min', default = False, action=argparse.BooleanOptionalAction, help='Whether to use max min ordering or not')
-
-# Add an option to create an animation 
-parser.add_argument('--animation', default = False, action=argparse.BooleanOptionalAction, help='Whether to create an animation of the max min ordering or not')
+parser.add_argument('--n_evaluations', type=int, default=2000, help='Order of the quadrature for the error computation')
 
 args = parser.parse_args()
 
@@ -92,9 +86,6 @@ length_scale = args.length_scale
 n_order = args.n_order
 n_coef = args.n_coef
 n_evaluations = args.n_evaluations
-no_max_min = args.no_max_min
-create_animation = args.animation
-
 
 
 
@@ -105,7 +96,6 @@ create_animation = args.animation
 ############################################
 
 
-
 if kernel_name == "se":
     print("Using SE kernel")
     from utilities_kernel_se import *
@@ -114,7 +104,6 @@ elif kernel_name == "matern":
     from utilities_kernel_matern import *
 else:
     raise ValueError("Kernel name not recognized")
-
 
 
 
@@ -172,8 +161,8 @@ plt.savefig(save_folder+"u_f.png")
 
 # Solve the Poisson equation with increasing number of measurements
 
-
-
+increment = 50
+n_meas_list = jnp.arange(n_meas_min, n_meas_max + increment, increment, dtype=int)
 # Boundary of the domain
 lower, upper = 0.0, 1.0
 
@@ -207,129 +196,46 @@ error_list_h = []
 relative_error_list_h = []
 
 pred_list = []
-meas_list = []
+for n_meas in n_meas_list:
 
+    loc_values = jnp.linspace(lower + epsilon_values[0], upper - epsilon_values[0],  int(L/(2*epsilon_values[0])))
+    N_test_functions = loc_values.shape[0]
 
-epsilon_values =  jnp.array([1/(n_meas_max*2)])
-# Construct the measurements
-loc_values = jnp.linspace(lower + epsilon_values[0], upper - epsilon_values[0],  int(L/(2*epsilon_values[0])))
-
-
-support = jnp.array([loc_values - epsilon_values[0], loc_values + epsilon_values[0]]).T
-vol = support[:,1] - support[:,0]
-N_test_functions = loc_values.shape[0]
-print("Total number of test functions: ", N_test_functions)
-
-
-
-root_psi, w_psi = vmap_root_interval(x_q, w_q, support)
-
-# Construct the mmatrix of weighted measurement functions 
-if measurement_type == "indicator":
-    psi_matrix = indicator_vector(root_psi, epsilon_values, loc_values)
-elif measurement_type == "bump":
-    psi_matrix = bump_vector(root_psi, epsilon_values, loc_values)
-else:
-    # Raise an error
-    print("Measurement type not recognized")
-    
-
-psi_matrix = psi_matrix * w_psi
-# Compute the RHS of the linear system
-
-# # Evaluate the RHS at a finer resolution then the kernel
-# x_f, w_f = roots_legendre(n_order*3)
-# root_f, w_psi_f = vmap_root_interval(x_f, w_f, support)
-# # Construct the mmatrix of weighted measurement functions 
-# if measurement_type == "indicator":
-#     psi_f = indicator_vector(root_f, epsilon_values, loc_values)
-# elif measurement_type == "bump":
-#     psi_f = bump_vector(root_f, epsilon_values, loc_values)
-# else:
-#     # Raise an error
-#     print("Measurement type not recognized")
-
-# psi_f = psi_f * w_psi_f
-# f_quad = evaluate_function(root_f, coef_f, L)
-# print(f_quad.shape)
-
-f_quad = evaluate_function(root_psi, coef_f, L)
-f_meas = vmap_integrate_f_test_functions(f_quad, psi_matrix)
-
-# Create max min ordering
-if no_max_min:
-    max_min_order = jnp.arange(loc_values.shape[0])
-else:
-    print("Creating max min ordering")
-    loc_values_boundary = jnp.hstack([jnp.array([lower, upper]), loc_values])
-    max_min_order = build_max_min_ordering(loc_values_boundary[:, None],[0,1])
-    max_min_order = max_min_order[2:] -2
+    print("Number of test functions: ", N_test_functions)
 
 
 
 
-# Reorganize the measurements according to the max min ordering
-f_meas = f_meas[max_min_order]
-# Reogarganize the psi matrix according to the max min ordering
-psi_matrix = psi_matrix[max_min_order, :]
-# Reorganize the root psi according to the max min ordering
-root_psi = root_psi[max_min_order, :]
-
-# Create an animation of the ordering
-if create_animation:
-    print("Creating animation of the ordering")
-    bump_values = vmap_indicator(x, epsilon_values, loc_values)
-    def update(i):
-        ax.plot(x, bump_values[:, 0, max_min_order[i]])
-        ax.set_title(f"Max-min ordering at step {i+1}")
-
-    # Initialize the plot
-    fig, ax = plt.subplots(figsize = (12,6))
-    animation = FuncAnimation(fig, update, frames=len(max_min_order), interval=10, repeat=False)
-    print("Saving animation")
-    # Save the animation
-    animation.save(save_folder+"max_min_ordering.mp4", writer='ffmpeg', fps=5, dpi = 150)
-
-
-# Compute the kernel matrix
-print("Constructing the kernel matrix")
-theta = construct_theta(boundary,psi_matrix, root_psi, length_scale)
-
-increment = 10
-n_meas_list = jnp.arange(n_meas_min, n_meas_max + increment, increment, dtype=int)
-n_meas_list = n_meas_list.at[-1].set(n_meas_max)
-
-
-
-
-for i in n_meas_list:
-    f_temp = f_meas[:i]
+    # Compute the RHS of the linear system
+    f_meas = evaluate_function(loc_values, coef_f, L)
 
     # Construct the RHS of the linear system
-    Y = jnp.block([jnp.zeros(shape = 2), f_temp])
-    print("Number of measurements: ", Y.shape[0]-1)
+    Y = jnp.block([jnp.zeros(shape = 2), f_meas])
+
+    # Compute the kernel matrix
+    print("Constructing the kernel matrix")
+    theta_11 = vmap_kernel(boundary, boundary, length_scale)
+    theta_12 = vmap_kernel_laplacian_y(boundary, loc_values, length_scale)
+    theta_22 = compute_K_double_laplacian_pairwise(loc_values, loc_values, length_scale)
+    theta = jnp.block([[theta_11, theta_12], [theta_12.T, theta_22]])
+
+    theta_evaluate_pointwise = jnp.block([vmap_kernel(x, boundary, length_scale), vmap_kernel_laplacian_y(x, loc_values, length_scale)])
+    theta_error = jnp.block([vmap_kernel(x_error, boundary, length_scale), vmap_kernel_laplacian_y(x_error, loc_values, length_scale)])
 
     # Construct the nugget
-    nugget = jnp.block([nugget_boundary*jnp.ones(shape = 2), nugget_interior*jnp.ones(shape = f_temp.shape[0])])
+    nugget = jnp.block([nugget_boundary*jnp.ones(shape = 2), nugget_interior*jnp.ones(shape = N_test_functions)])
 
     # Solve the linear system
     print("Solving the linear system")
-    # Select the submatrix of theta corresponding to the current measurements
-    theta_temp = theta[:i+2, :i+2]
-
-    c = scipy.linalg.solve(theta_temp + nugget*jnp.eye(theta_temp.shape[0]), Y, assume_a='pos')
+    c = scipy.linalg.solve(theta + nugget*jnp.eye(theta.shape[0]), Y, assume_a='pos')
 
     # Compute the numerical solution
-    pred = evaluate_prediction(x, c, length_scale, root_psi[:i], psi_matrix[:i], boundary)
+    pred = theta_evaluate_pointwise@c
     pred_list.append(pred)
 
-    # Compute the numerical solution at the quadrature points (for computing the error)
-    pred_error = evaluate_prediction(x_error, c, length_scale, root_psi[:i], psi_matrix[:i], boundary)
 
-    # Compute the measurements of the numerical solution
-    theta_eval = theta[:, :i+2]
-    temp = theta_eval@c
-    meas_list.append(temp)
+    # Compute the numerical solution at the quadrature points (for computing the error)
+    pred_error = theta_error@c
 
 
     # Compute the error between the true solution and the numerical solution
@@ -359,7 +265,6 @@ error_list_h = jnp.array(error_list_h)
 relative_error_list_h = jnp.array(relative_error_list_h)
 
 pred_list = jnp.array(pred_list)
-meas_list = jnp.array(meas_list)
 
 
 print("Best error: ", jnp.min(error_list))
@@ -477,33 +382,5 @@ ax[0].legend()
 ax[1].legend()
 
 plt.savefig(save_folder+"final_numerical_solution.png")
-
-
-
-if create_animation:
-    fig, ax = plt.subplots(3,1, figsize = (12,10))
-
-    def update(i):
-            idx = n_meas_list[i]
-            ax[0].clear()
-            ax[0].scatter(loc_values[max_min_order], f_meas, label = 'true', s = 3, color = "blue")
-            ax[0].scatter(loc_values[max_min_order], meas_list[i, 2:], label = 'prediction', s = 3, color = "green")
-            ax[0].scatter(loc_values[max_min_order[:idx]], meas_list[i, 2:idx+2], label = 'training points', color = 'red', s = 3)
-            ax[0].legend()
-            ax[0].set_title(f"Prediction of the measurements with {n_meas_list[i]} data points")
-
-            ax[1].clear()
-            ax[1].plot(x, pred_list[i], label = 'pred')
-            ax[1].plot(x, u_values, label = 'true')
-            ax[1].set_title("Prediction with  {} pointwise evaluation of the RHS".format(n_meas_list[i]))
-            ax[1].legend()
-
-            ax[2].clear()
-            ax[2].plot(x, pred_list[i] - u_values)
-            ax[2].set_title("Pointwise error with  {} pointwise evaluation of the RHS".format(n_meas_list[i]))
-    # Create an animation of the the rhs, the solution and the pointwise error
-
-    animation = FuncAnimation(fig, update, frames=len(n_meas_list), interval=500, repeat=False)
-    animation.save(save_folder+"results.mp4", writer='ffmpeg', fps=2, dpi = 150)
 
 
