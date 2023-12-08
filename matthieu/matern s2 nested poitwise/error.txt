@@ -1,10 +1,10 @@
-Best error: 3.7788637187972776e-06
-Best relative error: 2.612973438713099e-05
+Best error: 0.002803210183312679
+Best relative error: 0.01938337631942278
 Number of measurements: 11
 Arguments of the parser:
 n_meas_max: 11
 s: 2.0
-save_folder: matern s2 nested
+save_folder: matern s2 nested poitwise
 kernel_name: matern
 measurement_type: indicator
 n_meas_min: 3
