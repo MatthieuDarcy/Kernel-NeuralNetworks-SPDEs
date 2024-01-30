@@ -131,6 +131,18 @@ def construct_theta(boundary,psi_matrix, root_psi, length_scale):
 
     return theta
 
+def theta_blocks(boundary,psi_matrix, root_psi, length_scale):
+    theta_11 = vmap_kernel(boundary, boundary, length_scale)
+    theta_22 = construct_theta_integral(psi_matrix, root_psi, length_scale)
+
+    K_quad = vmap_laplacian_kernel_quad(boundary, root_psi[:, :, None], length_scale)
+    theta_12 = jnp.einsum('nmk,mk->nm', K_quad, psi_matrix)
+    
+
+    #theta = jnp.block([[theta_11, theta_12], [theta_12.T, theta_22]])
+
+    return theta_11, theta_12, theta_22
+
 def evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary):
     K_boundary = vmap_kernel(x,boundary, length_scale)
     K_interior = jnp.einsum('nmk,mk->nm',  vmap_laplacian_kernel_quad(x, root_psi[:, :, None], length_scale), psi_matrix)
