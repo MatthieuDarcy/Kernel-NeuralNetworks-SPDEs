@@ -31,13 +31,13 @@ def double_neg_laplacian(x,y,l):
     hess = jnp.where(jnp.allclose(x,y), nu**2/(8*(2-3*nu+nu**2))*math.factorial(4)/l**4, hess)
     return jnp.sum(hess)
 
-def L_operator_x(x, y, l, epsilon,):
-    return epsilon*neg_laplacian_x(x, y, l) - matern_kernel(x, y, l)
+def L_operator_x(x, y, l, epsilon):
+    return epsilon*neg_laplacian_x(x, y, l) + matern_kernel(x, y, l)
 
 vmap_L_operator_x = jit(vmap(vmap(L_operator_x, in_axes=(0, None, None, None)), in_axes=(None, 0, None, None)))
 
 def L_operator_y(x, y, l, epsilon):
-    return epsilon*neg_laplacian_y(x, y, l) - matern_kernel(x, y, l)
+    return epsilon*neg_laplacian_y(x, y, l) + matern_kernel(x, y, l)
 vmap_L_operator_y = jit(vmap(vmap(L_operator_y, in_axes=(None, 0, None, None)), in_axes=(0, None, None, None)))
 
 
@@ -45,7 +45,7 @@ vmap_L_operator_y = jit(vmap(vmap(L_operator_y, in_axes=(None, 0, None, None)), 
 #     return -epsilon**2*double_neg_laplacian(x, y, l) + 2*epsilon*neg_laplacian_x(x, y, l)+ matern_kernel(x, y, l)
 
 def LL_operator(x, y, l, epsilon):
-    return epsilon**2*double_neg_laplacian(x, y, l) - epsilon*neg_laplacian_x(x, y, l) - epsilon*neg_laplacian_y(x, y, l)+ matern_kernel(x, y, l)
+    return epsilon**2*double_neg_laplacian(x, y, l) + epsilon*neg_laplacian_x(x, y, l) + epsilon*neg_laplacian_y(x, y, l)+ matern_kernel(x, y, l)
 
 vmap_LL_operator = vmap(vmap(LL_operator, in_axes=(0, None, None, None)), in_axes = (None, 0, None, None))
 
@@ -81,3 +81,4 @@ def evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary, epsi
     K_evaluate = jnp.block([[K_boundary, K_interior]])
 
     return K_evaluate@c
+

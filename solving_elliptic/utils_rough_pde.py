@@ -11,6 +11,10 @@ import math
 from jax.config import config
 config.update("jax_enable_x64", True)
 
+
+########################################################################################################################
+# Test function utilities
+
 # Utilities for bump functions
 def bump(x, epsilon, loc):
     condition = (loc - epsilon < x) & (x < loc + epsilon)
@@ -47,6 +51,31 @@ vmap_indicator = vmap(indicator_vectorized_over_epsilon, in_axes=(0, None, None)
 
 indicator_vector = vmap(indicator, in_axes=(0, None, 0))
 
+# Utilities for the tent functions
+def tent_function(x, epsilon, center):
+    return jnp.maximum(0, 1 - jnp.abs(x - center) / epsilon)/epsilon
+
+def gradient_tent_function(x, epsilon, center):
+    return jnp.where(jnp.abs(x - center) < epsilon, jnp.sign(center -x) , 0)/epsilon**2
+
+vmap_tent = vmap(tent_function, in_axes=(None, None, 0))
+vmap_tent_vector = vmap(tent_function, in_axes=(0, None, 0))
+
+def compute_l2_ip(epsilon, center_1, center_2):
+    condition1 = center_1 == center_2
+    condition2 = jnp.allclose(jnp.abs(center_1 - center_2), epsilon)
+    return jnp.where(condition1, 2 / (epsilon*3),
+                     jnp.where(condition2, 2 / (epsilon*3), 0))
+
+def compute_h1_ip(epsilon, center_1, center_2):
+    condition1 = center_1 == center_2
+    condition2 = jnp.allclose(jnp.abs(center_1 - center_2), epsilon)
+    return jnp.where(condition1, 2 / epsilon,
+                     jnp.where(condition2, -1 / epsilon, 0))
+
+vmap_compute_l2_ip = vmap(vmap(compute_l2_ip, in_axes=(None, 0, None)), in_axes=(None, None, 0))
+vmap_compute_energy_ip = vmap(vmap(compute_h1_ip, in_axes=(None, 0, None)), in_axes=(None, None, 0))
+
 
 ###########################################################################################################
 
@@ -76,11 +105,29 @@ def integrate_f_test_functions(f_values, psi):
     return f_values.T@psi
 vmap_integrate_f_test_functions = jit(vmap(integrate_f_test_functions, in_axes=(0,0)))
 
+def evaluate_chi(x,k, L):
+    return jnp.sin((k)*jnp.pi*x/L)*jnp.sqrt(2/L)
+
+vmap_chi_quad = jit(vmap(vmap(evaluate_chi, in_axes=(0, None, None)), in_axes = (None, 0, None)))
+
+def construct_f_meas(coef,psi_matrix, root_psi, L):
+    n_coef = coef.shape[0]
+    freq = jnp.arange(1, n_coef+1)
+
+    chi_quad = vmap_chi_quad(root_psi,freq, L)
+    B = jnp.sum(chi_quad*psi_matrix[None], axis = -1)
+    f_m = jnp.sum(coef[:, None]*B, axis = 0)
+
+    return f_m
+
+
+########################################################################################################################
+# Utilities for the error
+
 
 # The following uses a Gauss quadrature rule to compute the integral instead of the trapezoidal rule (this is more accurate)
 @jit
 def compute_error(pred_q, true_q, w_q):
-
     loss = jnp.sqrt(jnp.sum((pred_q - true_q)**2*w_q))
     relative_loss = loss/jnp.sqrt(jnp.sum(true_q**2*w_q))
     return loss, relative_loss
@@ -104,6 +151,7 @@ def compute_error_h(pred_q, true_q,x_q, w_q, s, L = 1.0, n_coef = 1000):
     norm_true = compute_h_norm(coef_true, s, L= L)
 
     return error, error/norm_true
+
 
 
 
