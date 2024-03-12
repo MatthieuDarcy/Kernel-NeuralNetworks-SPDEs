@@ -84,3 +84,4 @@ def evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary, epsi
     return K_evaluate@c
 
 vmap_evaluate_prediction = jit(vmap(evaluate_prediction, in_axes=(0, None, None, None, None, None, None, None)))
+

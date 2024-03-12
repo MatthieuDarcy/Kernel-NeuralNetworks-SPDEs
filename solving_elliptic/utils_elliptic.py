@@ -31,6 +31,8 @@ def double_neg_laplacian(x,y,l):
     hess = jnp.where(jnp.allclose(x,y), nu**2/(8*(2-3*nu+nu**2))*math.factorial(4)/l**4, hess)
     return jnp.sum(hess)
 
+########################################################################################################################
+# L = -Delta u + u
 def L_operator_x(x, y, l, epsilon):
     return epsilon*neg_laplacian_x(x, y, l) + matern_kernel(x, y, l)
 
@@ -40,14 +42,29 @@ def L_operator_y(x, y, l, epsilon):
     return epsilon*neg_laplacian_y(x, y, l) + matern_kernel(x, y, l)
 vmap_L_operator_y = jit(vmap(vmap(L_operator_y, in_axes=(None, 0, None, None)), in_axes=(0, None, None, None)))
 
-
-# def LL_operator(x, y, l, epsilon):
-#     return -epsilon**2*double_neg_laplacian(x, y, l) + 2*epsilon*neg_laplacian_x(x, y, l)+ matern_kernel(x, y, l)
-
 def LL_operator(x, y, l, epsilon):
     return epsilon**2*double_neg_laplacian(x, y, l) + epsilon*neg_laplacian_x(x, y, l) + epsilon*neg_laplacian_y(x, y, l)+ matern_kernel(x, y, l)
 
 vmap_LL_operator = vmap(vmap(LL_operator, in_axes=(0, None, None, None)), in_axes = (None, 0, None, None))
+
+########################################################################################################################
+# L = -Delta u + b(x)u
+def L_b_x(x, y, l, epsilon, b_x):
+    return epsilon*neg_laplacian_x(x, y, l) + b_x*matern_kernel(x, y, l)
+
+vmap_L_b_x = jit(vmap(vmap(L_b_x, in_axes=(0, None, None, None, 0)), in_axes=(None, 0, None, None, None)))
+
+def L_b_y(x, y, l, epsilon, b_y):
+    return epsilon*neg_laplacian_y(x, y, l) + b_y*matern_kernel(x, y, l)
+vmap_L_b_y = jit(vmap(vmap(L_b_y, in_axes=(None, 0, None, None, 0)), in_axes=(0, None, None, None, None)))
+
+def L_b_xy(x, y, l, epsilon,b_x, b_y):
+    return epsilon**2*double_neg_laplacian(x, y, l) + epsilon*b_y*neg_laplacian_x(x, y, l) + epsilon*b_x*neg_laplacian_y(x, y, l)+ b_x*b_y*matern_kernel(x, y, l)
+
+vmap_L_b_xy = vmap(vmap(L_b_xy, in_axes=(0, None, None, None,0, None)), in_axes = (None, 0, None, None, None, 0))
+
+
+########################################################################################################################
 
 
 # Defining how to compute the integrals against test functions
@@ -81,4 +98,5 @@ def evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary, epsi
     K_evaluate = jnp.block([[K_boundary, K_interior]])
 
     return K_evaluate@c
+
 
