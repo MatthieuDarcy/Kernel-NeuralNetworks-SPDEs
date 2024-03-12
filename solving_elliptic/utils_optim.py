@@ -166,6 +166,10 @@ class kernel_linear_solver():
     def evaluate_solution_parallel(self, x):
         return vmap_evaluate_prediction(x, self.c, self.length_scale, self.root_psi, self.psi_matrix, self.boundary, self.nu, self.root_b)
     
+    def evaluate_solution_psi(self):
+        pred_root = self.evaluate_solution_parallel(self.root_psi)
+        return vmap_integrate_f_test_functions(pred_root, self.psi_matrix)
+    
     def evaluate_solution_L_psi(self, b_L):
         K_bc =  jnp.squeeze(vmap_linear_form_K(self.psi_matrix, self.boundary, self.root_psi, self.length_scale, self.nu, b_L), axis = -1)
         # For some reason the arguments are flipped 
