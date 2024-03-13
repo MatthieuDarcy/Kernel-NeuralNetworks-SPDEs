@@ -31,7 +31,13 @@ def solve_linear_system(K, f_m, bc, reg_stab = 1e-8):
     This solves the linear system without regularization
     """
     rhs = jnp.hstack([bc, f_m])
-    return scipy.linalg.solve(K + reg_stab*jnp.eye(K.shape[0]), rhs, assume_a='pos')
+    n_bc = bc.shape[0]
+    #n_interior = f_m.shape[0]
+    nugget_bc = jnp.ones(n_bc)*1e-10
+    nugget_interior = jnp.ones(f_m.shape[0])*reg_stab
+    nugget = jnp.hstack([nugget_bc, nugget_interior])
+    #print(nugget.shape)
+    return scipy.linalg.solve(K + jnp.diag(nugget), rhs, assume_a='pos')
 
 def compute_frechet_proj(u_root, psi_matrix, tau_prime):
     root_values =  tau_prime(u_root)*u_root
@@ -159,6 +165,29 @@ class kernel_linear_solver():
 
         self.residuals= self.compute_residuals(K_interior, rhs_meas, L_stiff)
         self.meas = K_interior@c
+    
+    def build_matrices(self, root_b):
+        self.root_b = root_b
+
+        # Construct the matrices
+        theta_11, theta_21, theta_22 = theta_blocks(self.boundary,self.psi_matrix, self.root_psi, self.length_scale, self.nu, root_b)
+        theta_12 = theta_21.T
+        K = jnp.block([[theta_11, theta_12], [theta_21, theta_22]])
+        K_interior = jnp.vstack([theta_12, theta_22]).T
+        K_bc = jnp.vstack([theta_11, theta_21]).T
+
+        self.K, self.K_interior, self.K_bc = K, K_interior, K_bc
+
+    def solve(self, rhs_meas, reg, L_stiff):
+
+        # When there is no regularization, solve the linear system directly with a Cholesky decomposition
+        if reg is None:
+            c = solve_linear_system(self.K, rhs_meas, self.boundary_conditions)
+        else:
+            c = solve_qp(self.K, self.K_interior, self.K_bc, L_stiff, rhs_meas, self.boundary_conditions, reg)
+        self.c = c
+        self.residuals= self.compute_residuals(self.K_interior, rhs_meas, L_stiff)
+        self.meas = self.K_interior@c
 
     def evaluate_solution(self, x):
         return evaluate_prediction(x, self.c, self.length_scale, self.root_psi, self.psi_matrix, self.boundary, self.nu, self.root_b)

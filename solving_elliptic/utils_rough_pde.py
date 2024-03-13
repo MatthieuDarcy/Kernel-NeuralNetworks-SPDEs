@@ -60,12 +60,16 @@ def gradient_tent_function(x, epsilon, center):
 
 vmap_tent = vmap(tent_function, in_axes=(None, None, 0))
 vmap_tent_vector = vmap(tent_function, in_axes=(0, None, 0))
+vmap_tent_evaluate= vmap(vmap_tent, in_axes=(0, None, None))
+
+def evaluate_tent(c, x, epsilon, center):
+    return vmap_tent_evaluate(x, epsilon, center)@c
 
 def compute_l2_ip(epsilon, center_1, center_2):
     condition1 = center_1 == center_2
     condition2 = jnp.allclose(jnp.abs(center_1 - center_2), epsilon)
     return jnp.where(condition1, 2 / (epsilon*3),
-                     jnp.where(condition2, 2 / (epsilon*3), 0))
+                     jnp.where(condition2, 1 / (epsilon*6), 0))
 
 def compute_h1_ip(epsilon, center_1, center_2):
     condition1 = center_1 == center_2
