@@ -1,0 +1,19 @@
+Best error: 3.250522692217442e-05
+Best relative error: 2.4853784696524227e-05
+Number of measurements: 300
+Arguments of the parser:
+n_meas_max: 300
+s: 2.0
+save_folder: test
+kernel_name: matern
+measurement_type: indicator
+n_meas_min: 10
+nugget_interior: 1e-07
+nugget_boundary: 1e-12
+seed: 609
+length_scale: 1.0
+n_order: 35
+n_coef: 1000
+n_evaluations: 2000
+no_max_min: False
+animation: True

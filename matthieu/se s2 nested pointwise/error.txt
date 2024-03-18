@@ -1,0 +1,18 @@
+Best error: 0.015553887241132701
+Best relative error: 0.02086672418473232
+Number of measurements: 11
+Arguments of the parser:
+n_meas_max: 11
+s: 2.0
+save_folder: se s2 nested pointwise
+kernel_name: se
+measurement_type: indicator
+n_meas_min: 3
+nugget_interior: 1e-07
+nugget_boundary: 1e-12
+seed: 218
+length_scale: 1.0
+n_order: 10
+n_coef: 5000
+n_evaluations: 2000
+cheat: False
