@@ -127,8 +127,6 @@ def construct_f_meas(coef,psi_matrix, root_psi, L):
 
 ########################################################################################################################
 # Utilities for the error
-
-
 # The following uses a Gauss quadrature rule to compute the integral instead of the trapezoidal rule (this is more accurate)
 @jit
 def compute_error(pred_q, true_q, w_q):
@@ -190,6 +188,60 @@ def build_max_min_ordering(X, initial_points):
         
 
     return jnp.array(idx_order)
+
+
+########################################################################################################################
+# Class to compute measurements
+from scipy.special import roots_legendre
+from jax import scipy
+class measurement_tool():
+    def __init__(self, domain, N, n_order = 10):
+        lower = domain[0]
+        upper = domain[1]
+
+        epsilon = (upper- lower)/N
+        centers = jnp.linspace(lower + epsilon, upper -epsilon, N)
+
+        self.N = N
+        self.centers = centers
+        self.epsilon = epsilon
+        self.n_order = n_order  
+
+        self.build_matrices()
+        self.build_measurements_matrices()
+
+        n_error = 100
+        x_error, w_error = roots_legendre(n_error)
+        x_error, w_error = root_interval(x_error, w_error, jnp.array([lower, upper]))
+        self.x_error = x_error
+        self.w_error = w_error
+
+    def build_matrices(self):
+        self.stiffess_matrix = vmap_compute_energy_ip(self.epsilon, self.centers, self.centers)
+        self.L_2 = vmap_compute_l2_ip(self.epsilon, self.centers, self.centers)
+        self.L_stiff = scipy.linalg.cho_factor(self.stiffess_matrix + 1e-10*jnp.eye(self.N))
+
+    def build_measurements_matrices(self):
+        support = jnp.array([self.centers - self.epsilon
+                     , self.centers + self.epsilon]).T
+        
+        x_q, w_q = roots_legendre(self.n_order)
+        self.x_interval, self.w_interval = vmap_root_interval(x_q, w_q, support)
+
+        root_psi, w_psi = vmap_root_interval(x_q, w_q, support)
+        psi_matrix = vmap_tent_vector(root_psi, self.epsilon, self.centers)
+
+        self.psi_matrix = psi_matrix * w_psi
+        self.root_psi = root_psi
+
+    def project(self, f_quad):
+        return vmap_integrate_f_test_functions(f_quad, self.psi_matrix)
+    
+    def evaluate_at_roots(self, function):
+        return function(self.root_psi)
+    
+    def evaluate_for_error(self, function):
+        return function(self.x_error)
 
 
 

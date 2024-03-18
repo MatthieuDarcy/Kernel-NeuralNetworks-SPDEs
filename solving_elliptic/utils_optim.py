@@ -105,7 +105,7 @@ def Gauss_Newton_solver_variable(lr, L_stiff, f_meas, b, tau, tau_prime, psi_mat
     
     return linear_solver
 
-def Gauss_Newton_solver(L_stiff, f_meas, b, tau, tau_prime, psi_matrix, root_psi,linear_solver, reg, n_iter = 10):
+def Gauss_Newton_solver(L_stiff, f_meas, b, tau, tau_prime, psi_matrix, root_psi,linear_solver, reg, n_iter = 10, verbose = True):
     """
     This Gauss Newton solver only accepts lr rates of 1.0 and breaks if the error increases.
     """
@@ -121,12 +121,14 @@ def Gauss_Newton_solver(L_stiff, f_meas, b, tau, tau_prime, psi_matrix, root_psi
         # Compute the residuals
         l_2_error, l_2_rel, h_s_error, h_s_rel = linear_solver.compute_residuals_nl(f_meas, tau, root_b, L_stiff)
         if h_s_error > prev_error:
-            print("Increase in error, exiting")
+            if verbose:
+                print("Increase in error, exiting")
             break
         else:
             improvement = jnp.abs(prev_error - h_s_error)/jnp.abs(prev_error)
             prev_error = h_s_error
-            print("Iteration {}, current error: {} H^-s, {} l_2. Improvement {}".format(i+1, jnp.round(h_s_rel,5), jnp.round(l_2_rel,5), jnp.round(improvement, 5))) 
+            if verbose:
+                print("Iteration {}, current error: {} H^-s, {} l_2. Improvement {}".format(i+1, jnp.round(h_s_rel,5), jnp.round(l_2_rel,5), jnp.round(improvement, 5))) 
 
             # Update the rhs 
             u_pred_root = linear_solver.evaluate_solution_parallel(root_psi)
@@ -136,7 +138,8 @@ def Gauss_Newton_solver(L_stiff, f_meas, b, tau, tau_prime, psi_matrix, root_psi
             root_linearization = b(root_psi) +  tau_prime(u_pred_root)
         
         if improvement < 1e-5:
-            print("Improvement too small, exiting")
+            if verbose:
+                print("Improvement too small, exiting")
             break
 
     
