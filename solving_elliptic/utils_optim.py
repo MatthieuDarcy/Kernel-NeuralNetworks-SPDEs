@@ -6,6 +6,7 @@ from jax import jit
 from utils_rough_pde import vmap_integrate_f_test_functions
 from utils_elliptic_coef import vmap_bilinear_form_K, vmap_linear_form_K, theta_blocks, evaluate_prediction, vmap_evaluate_prediction
 from utils_rough_pde import compute_error
+from utils_elliptic_coef import vmap_K_psi, build_K_eval
 
 from jax.config import config
 config.update("jax_enable_x64", True)
@@ -38,6 +39,15 @@ def solve_linear_system(K, f_m, bc, reg_stab = 1e-8):
     nugget = jnp.hstack([nugget_bc, nugget_interior])
     #print(nugget.shape)
     return scipy.linalg.solve(K + jnp.diag(nugget), rhs, assume_a='pos')
+
+def cho_solve_system(L_K, f_m, bc, reg_stab = 1e-8):
+    """
+    This solves the linear system without regularization
+    """
+    rhs = jnp.hstack([bc, f_m])
+    
+    #print(nugget.shape)
+    return scipy.linalg.cho_solve(L_K, rhs)
 
 def compute_frechet_proj(u_root, psi_matrix, tau_prime):
     root_values =  tau_prime(u_root)*u_root
@@ -178,16 +188,26 @@ class kernel_linear_solver():
 
         self.K, self.K_interior, self.K_bc = K, K_interior, K_bc
 
-    def solve(self, rhs_meas, reg, L_stiff):
+        # Compute the nugget
+        n_bc = self.boundary_conditions.shape[0]
+        nugget_bc = jnp.ones(n_bc)*1e-10
+        nugget_interior = jnp.ones(K.shape[0]- n_bc)*1e-8
+        nugget = jnp.hstack([nugget_bc, nugget_interior])
+        self.L_K = scipy.linalg.cho_factor(K + jnp.diag(nugget), lower = True)
+
+    def solve(self, rhs_meas, reg, L_stiff, compute_residuals = True):
 
         # When there is no regularization, solve the linear system directly with a Cholesky decomposition
         if reg is None:
-            c = solve_linear_system(self.K, rhs_meas, self.boundary_conditions)
+            c = cho_solve_system(self.L_K, rhs_meas, self.boundary_conditions)
         else:
             c = solve_qp(self.K, self.K_interior, self.K_bc, L_stiff, rhs_meas, self.boundary_conditions, reg)
         self.c = c
-        self.residuals= self.compute_residuals(self.K_interior, rhs_meas, L_stiff)
-        self.meas = self.K_interior@c
+        if compute_residuals:
+            self.residuals= self.compute_residuals(self.K_interior, rhs_meas, L_stiff)
+            self.meas = self.K_interior@c
+
+    
 
     def evaluate_solution(self, x):
         return evaluate_prediction(x, self.c, self.length_scale, self.root_psi, self.psi_matrix, self.boundary, self.nu, self.root_b)
@@ -195,9 +215,27 @@ class kernel_linear_solver():
     def evaluate_solution_parallel(self, x):
         return vmap_evaluate_prediction(x, self.c, self.length_scale, self.root_psi, self.psi_matrix, self.boundary, self.nu, self.root_b)
     
+    # def evaluate_solution_psi(self):
+    #     pred_root = self.evaluate_solution_parallel(self.root_psi)
+    #     return vmap_integrate_f_test_functions(pred_root, self.psi_matrix)
+
+    def create_K_eval(self, x):
+        self.K_eval = build_K_eval(x, self.length_scale, self.root_psi, self.psi_matrix, self.boundary, self.nu, self.root_b)
+
+    
+    def create_K_psi(self):
+        K_psi = vmap_K_psi(self.root_psi, self.length_scale, self.root_psi, self.psi_matrix, self.boundary, self.nu, self.root_b)
+        K_psi = jnp.sum(K_psi*self.psi_matrix[:, :, None],axis = 1)
+        self.K_psi = K_psi
+
+    
     def evaluate_solution_psi(self):
-        pred_root = self.evaluate_solution_parallel(self.root_psi)
-        return vmap_integrate_f_test_functions(pred_root, self.psi_matrix)
+        # Check wether K_psi has been created
+        if not hasattr(self, 'K_psi'):
+            self.create_K_psi()
+
+        return self.K_psi@self.c
+
     
     def evaluate_solution_L_psi(self, b_L):
         K_bc =  jnp.squeeze(vmap_linear_form_K(self.psi_matrix, self.boundary, self.root_psi, self.length_scale, self.nu, b_L), axis = -1)

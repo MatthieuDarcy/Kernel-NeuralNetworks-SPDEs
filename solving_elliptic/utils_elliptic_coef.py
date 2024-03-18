@@ -85,3 +85,20 @@ def evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary, epsi
 
 vmap_evaluate_prediction = jit(vmap(evaluate_prediction, in_axes=(0, None, None, None, None, None, None, None)))
 
+def build_K_psi(x, length_scale, root_psi, psi_matrix, boundary, epsilon, b_root):
+    K_boundary = vmap_kernel(x,boundary, length_scale)
+    K_interior = jnp.squeeze(vmap_linear_form_K(psi_matrix, x[:, None], root_psi, length_scale, epsilon, b_root), axis = -1).T
+    K_evaluate = jnp.block([[K_boundary, K_interior]])
+
+    return K_evaluate
+vmap_K_psi = jit(vmap(build_K_psi, in_axes=(0, None, None, None, None, None, None)))
+
+def build_K_eval(x, length_scale, root_psi, psi_matrix, boundary, epsilon, b_root):
+    K_boundary = vmap_kernel(x,boundary, length_scale)
+    K_interior = jnp.squeeze(vmap_linear_form_K(psi_matrix, x[:, None], root_psi, length_scale, epsilon, b_root), axis = -1).T
+    K_evaluate = jnp.block([[K_boundary, K_interior]])
+
+    return K_evaluate
+
+vmap_K_eval = jit(vmap(build_K_eval, in_axes=(0, None, None, None, None, None, None)))
+
