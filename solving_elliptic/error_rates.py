@@ -20,8 +20,10 @@ import argparse
 parser = argparse.ArgumentParser(description='Compute the convergence rates for the linear and semilinear elliptic PDEs')
 parser.add_argument('--n_max', type=int, help='Maximum number of measurements (in log 2 scale)')
 parser.add_argument('--n_min', type=int, help='Maximum number of measurements (in log 2 scale)')
+parser.add_argument('--n_order', type=int, help='Order of the quadrature rule')
 n_max = parser.parse_args().n_max
 n_min = parser.parse_args().n_min
+n_order = parser.parse_args().n_order
 
 
 
@@ -74,7 +76,7 @@ error = []
 error_rel = []
 for i in meas_exp:
     n_meas = 2**i
-    m_tool = measurement_tool(domain, n_meas)
+    m_tool = measurement_tool(domain, n_meas, n_order=n_order)
     root_b = m_tool.evaluate_at_roots(b)
     u_error = m_tool.evaluate_for_error(u_lambda)
 
@@ -163,7 +165,7 @@ error = []
 error_rel = []
 for i in meas_exp:
     n_meas = 2**i
-    m_tool = measurement_tool(domain, n_meas)
+    m_tool = measurement_tool(domain, n_meas, n_order=n_order)
     root_b = m_tool.evaluate_at_roots(b)
     u_error = m_tool.evaluate_for_error(u_lambda)
 
