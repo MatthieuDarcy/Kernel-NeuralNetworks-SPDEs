@@ -21,9 +21,12 @@ parser = argparse.ArgumentParser(description='Compute the convergence rates for 
 parser.add_argument('--n_max', type=int, help='Maximum number of measurements (in log 2 scale)')
 parser.add_argument('--n_min', type=int, help='Maximum number of measurements (in log 2 scale)')
 parser.add_argument('--n_order', type=int, help='Order of the quadrature rule')
+parser.add_argument('--name', type=str, help='Name of the experiment')
 n_max = parser.parse_args().n_max
 n_min = parser.parse_args().n_min
 n_order = parser.parse_args().n_order
+name = parser.parse_args().name
+
 
 
 
@@ -129,7 +132,7 @@ ax[1].set_title(r"Convergence of the relative $L^2$ error")
 ax[1].set_ylabel(r"$\frac{||u^\dagger - u^*||_{L^2}}{||u^*||_{L^2}}$")
 
 # Save the plot
-plt.savefig("L2_convergence_elliptic.png")
+plt.savefig("L2_convergence_elliptic_{}.png".format(name))
 
 
 ########################################################################################################################
@@ -220,5 +223,5 @@ ax[1].set_title(r"Convergence of the relative $L^2$ error")
 ax[1].set_ylabel(r"$\frac{||u^\dagger - u^*||_{L^2}}{||u^*||_{L^2}}$")
 
 # Save the plot
-plt.savefig("L2_convergence_semilinear.png")
+plt.savefig("L2_convergence_semilinear_{}.png".format(name))
 
