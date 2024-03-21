@@ -77,6 +77,18 @@ def compute_h1_ip(epsilon, center_1, center_2):
     return jnp.where(condition1, 2 / epsilon,
                      jnp.where(condition2, -1 / epsilon, 0))
 
+
+def create_banded_matrix(n, a, b):
+    # Diagonal filled with `a`
+    diagonal = jnp.full(n, a)
+    # Immediate off-diagonals filled with `b`
+    off_diagonal = jnp.full(n - 1, b)
+    # Create the banded matrix
+    matrix = jnp.diag(diagonal) + jnp.diag(off_diagonal, k=1) + jnp.diag(off_diagonal, k=-1)
+    return matrix
+
+
+
 vmap_compute_l2_ip = vmap(vmap(compute_l2_ip, in_axes=(None, 0, None)), in_axes=(None, None, 0))
 vmap_compute_energy_ip = vmap(vmap(compute_h1_ip, in_axes=(None, 0, None)), in_axes=(None, None, 0))
 
@@ -217,8 +229,9 @@ class measurement_tool():
         self.w_error = w_error
 
     def build_matrices(self):
-        self.stiffess_matrix = vmap_compute_energy_ip(self.epsilon, self.centers, self.centers)
-        self.L_2 = vmap_compute_l2_ip(self.epsilon, self.centers, self.centers)
+        self.stiffess_matrix = create_banded_matrix(self.N, 2/(self.epsilon*3), 1/(self.epsilon*6))#vmap_compute_energy_ip(self.epsilon, self.centers, self.centers) 
+                    
+        self.L_2 =create_banded_matrix(self.N, 2/(self.epsilon), -1/(self.epsilon))  #vmap_compute_l2_ip(self.epsilon, self.centers, self.centers) 
         self.L_stiff = scipy.linalg.cho_factor(self.stiffess_matrix + 1e-10*jnp.eye(self.N))
 
     def build_measurements_matrices(self):

@@ -6,7 +6,7 @@ from jax import jit
 from utils_rough_pde import vmap_integrate_f_test_functions
 from utils_elliptic_coef import vmap_bilinear_form_K, vmap_linear_form_K, theta_blocks, evaluate_prediction, vmap_evaluate_prediction
 from utils_rough_pde import compute_error
-from utils_elliptic_coef import vmap_K_psi, build_K_eval
+from utils_elliptic_coef import vmap_K_psi, build_K_eval, vmap_K_eval
 
 from jax.config import config
 config.update("jax_enable_x64", True)
@@ -224,6 +224,15 @@ class kernel_linear_solver():
 
     def create_K_eval(self, x):
         self.K_eval = build_K_eval(x, self.length_scale, self.root_psi, self.psi_matrix, self.boundary, self.nu, self.root_b)
+    
+    def vmap_create_K_eval(self, x):
+        self.K_eval_vmap = vmap_K_eval(x, self.length_scale, self.root_psi, self.psi_matrix, self.boundary, self.nu, self.root_b)
+
+    def evaluate_solution_predef(self, x):
+        # Check wether K_predef has been created
+        if not hasattr(self, 'K_eval_vmap'):
+            self.vmap_create_K_eval(x)
+        return self.K_eval_vmap@self.c
 
     
     def create_K_psi(self):
