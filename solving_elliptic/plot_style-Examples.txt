@@ -16,7 +16,7 @@ font.size: 20
 image.cmap: coolwarm
 mathtext.fontset: stix
 font.family: STIXGeneral
-lines.linewidth: 2
+lines.linewidth: 1.0
 legend.frameon: True
 legend.framealpha: 0.8
 legend.fontsize: 10
