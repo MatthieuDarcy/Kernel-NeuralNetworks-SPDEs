@@ -9,6 +9,8 @@ def matern_kernel(x, y, length_scale):
     r = jnp.sqrt(jnp.sum((x - y) ** 2))
     return (1 + jnp.sqrt(5)*r/length_scale + (5 / 3) * (r ** 2) / (length_scale ** 2)) * jnp.exp(-jnp.sqrt(5)*r/length_scale)
 
+
+
 vmap_kernel_row = vmap(matern_kernel, in_axes=(None, 0, None))
 # Now we apply vmap to the result to vectorize over the rows of the first argument
 vmap_kernel = jit(vmap(vmap_kernel_row, in_axes=(0, None, None)))
@@ -48,6 +50,24 @@ def L_b_xy(x, y, l, epsilon,b_x, b_y):
     return epsilon**2*double_neg_laplacian(x, y, l) + epsilon*b_y*neg_laplacian_x(x, y, l) + epsilon*b_x*neg_laplacian_y(x, y, l)+ b_x*b_y*matern_kernel(x, y, l)
 
 vmap_L_b_xy = vmap(vmap(L_b_xy, in_axes=(0, None, None, None,0, None)), in_axes = (None, 0, None, None, None, 0))
+
+
+########################################################################################################################
+# This is for the boundary conditions
+def grad_matern_kernel_x(x, y, length_scale):
+    nabla = grad(matern_kernel, argnums = 0)(x, y, length_scale)
+    nabla = jnp.where(jnp.allclose(x,y), 0, nabla)
+
+    return nabla
+
+def double_grad_matern_kernel(x, y, length_scale):
+    nabla = grad(grad_matern_kernel_x, argnums = 1)(x, y, length_scale)
+    nu = 5/2
+    nabla = jnp.where(jnp.allclose(x,y), -2*nu/(2*(1-nu)*length_scale), nabla)
+
+    return nabla
+
+vmap_double_grad_kernel = vmap(vmap(double_grad_matern_kernel, in_axes = (0, None, None)), in_axes = (None, 0, None))
 
 
 ########################################################################################################################
