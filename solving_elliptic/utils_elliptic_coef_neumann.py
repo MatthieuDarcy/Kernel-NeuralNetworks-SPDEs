@@ -58,7 +58,7 @@ def grad_matern_kernel_x(x, y, length_scale):
     nabla = grad(matern_kernel, argnums = 0)(x, y, length_scale)
     nabla = jnp.where(jnp.allclose(x,y), 0, nabla)
 
-    return nabla
+    return jnp.squeeze(nabla)
 
 def double_grad_matern_kernel(x, y, length_scale):
     nabla = grad(grad_matern_kernel_x, argnums = 1)(x, y, length_scale)
@@ -67,11 +67,32 @@ def double_grad_matern_kernel(x, y, length_scale):
 
     return nabla
 
-vmap_double_grad_kernel = vmap(vmap(double_grad_matern_kernel, in_axes = (0, None, None)), in_axes = (None, 0, None))
+vmap_boundary = vmap(vmap(double_grad_matern_kernel, in_axes = (0, None, None)), in_axes = (None, 0, None))
+
+# We now mix the boundary and interior domain operators 
+
+def boundary_x_interior_y_kernel(x, y, length_scale, epsilon, b_y):
+    nabla = grad(L_b_y, argnums = 1)(x, y, length_scale, epsilon, b_y)
+    nabla = jnp.where(jnp.allclose(x,y),0, nabla)
+    return nabla
+
+vmap_boundary_x_interior_y_kernel = vmap(vmap(boundary_x_interior_y_kernel, in_axes = (0, None, None, None, None)), in_axes = (None, 0, None, None, None))
 
 
 ########################################################################################################################
+# Boundary and interior domain blocks
 
+def linear_form_boundary_K(x, p, points, length_scale, epsilon, b_y):
+    # Create the kernel matrix 
+    K = vmap_boundary_x_interior_y_kernel(p, points, length_scale, epsilon, b_y)
+    return K@x
+
+vmap_linear_form_boundary_K = jit(vmap(vmap(linear_form_boundary_K, in_axes=(None, 0, None, None, None, None)), in_axes=(0, None, 0, None, None, 0)))
+
+
+
+########################################################################################################################
+# Interior domain blocks
 # Defining how to compute the integrals against test functions
 def bilinear_form_K(x, y, points_1, points_2, length_scale, epsilon, b_1, b_2):
     # Create the kernel matrix 
@@ -87,11 +108,15 @@ def linear_form_K(x, p, points, length_scale, epsilon, b_y):
 
 vmap_linear_form_K = jit(vmap(vmap(linear_form_K, in_axes=(None, 0, None, None, None, None)), in_axes=(0, None, 0, None, None, 0)))
 
+
+
+########################################################################################################################
 # Define a function that constructs the various blocks of the matrix
+
 @jit
 def theta_blocks(boundary,psi_matrix, root_psi, length_scale, epsilon, b_root):
-    theta_11 = vmap_kernel(boundary, boundary, length_scale)
-    theta_21 = jnp.squeeze(vmap_linear_form_K(psi_matrix, boundary, root_psi, length_scale, epsilon, b_root), axis = -1)
+    theta_11 = jnp.squeeze(vmap_boundary(boundary, boundary, length_scale))
+    theta_21 = jnp.squeeze(vmap_linear_form_boundary_K(psi_matrix, boundary, root_psi, length_scale, epsilon, b_root), axis = -1)
     theta_22 = vmap_bilinear_form_K(psi_matrix, psi_matrix, root_psi, root_psi, length_scale, epsilon, b_root, b_root)
     return theta_11, theta_21, theta_22
 
