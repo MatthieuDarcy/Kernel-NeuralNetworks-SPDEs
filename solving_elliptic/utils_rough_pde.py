@@ -207,12 +207,18 @@ def build_max_min_ordering(X, initial_points):
 from scipy.special import roots_legendre
 from jax import scipy
 class measurement_tool():
-    def __init__(self, domain, N, n_order = 10):
+    def __init__(self, domain, N, n_order = 10, mode = "Dirichlet"):
         lower = domain[0]
         upper = domain[1]
 
         epsilon = (upper- lower)/N
-        centers = jnp.linspace(lower + epsilon, upper -epsilon, N)
+        self.mode= mode
+        if mode == "Dirichlet":
+            centers = jnp.linspace(lower + epsilon, upper -epsilon, N)
+        elif mode == "Neumann":
+            centers = jnp.linspace(lower, upper, N)
+        else:
+            raise ValueError("Mode not recognized")
 
         self.N = N
         self.centers = centers
@@ -235,17 +241,44 @@ class measurement_tool():
         self.L_stiff = scipy.linalg.cho_factor(self.stiffess_matrix + 1e-10*jnp.eye(self.N))
 
     def build_measurements_matrices(self):
-        support = jnp.array([self.centers - self.epsilon
-                     , self.centers + self.epsilon]).T
-        
-        x_q, w_q = roots_legendre(self.n_order)
-        self.x_interval, self.w_interval = vmap_root_interval(x_q, w_q, support)
+        if self.mode == "Dirichlet":
+            support = jnp.array([self.centers - self.epsilon
+                        , self.centers + self.epsilon]).T
 
-        root_psi, w_psi = vmap_root_interval(x_q, w_q, support)
-        psi_matrix = vmap_tent_vector(root_psi, self.epsilon, self.centers)
+            
+            x_q, w_q = roots_legendre(self.n_order)
+            self.x_interval, self.w_interval = vmap_root_interval(x_q, w_q, support)
 
-        self.psi_matrix = psi_matrix * w_psi
-        self.root_psi = root_psi
+            root_psi, w_psi = vmap_root_interval(x_q, w_q, support)
+            psi_matrix = vmap_tent_vector(root_psi, self.epsilon, self.centers)
+            self.w_psi = w_psi
+            self.psi_matrix = psi_matrix * w_psi
+            self.root_psi = root_psi
+        elif self.mode == "Neumann":
+
+            # support = jnp.hstack([jnp.array([self.centers[0],self.centers[0] + self.epsilon])[:, None], jnp.array([self.centers[1:-1] - self.epsilon
+            #                         , self.centers[1:-1] + self.epsilon]), jnp.array([self.centers[-1] -self.epsilon ,self.centers[-1]])[:, None]]).T
+
+            support = jnp.array([self.centers - self.epsilon
+                        , self.centers + self.epsilon]).T
+            
+            x_q, w_q = roots_legendre(self.n_order)
+            self.x_interval, self.w_interval = vmap_root_interval(x_q, w_q, support)
+
+            root_psi, w_psi = vmap_root_interval(x_q, w_q, support)
+            psi_matrix = vmap_tent_vector(root_psi, self.epsilon, self.centers)
+
+            psi_matrix = psi_matrix.at[0, :self.n_order//2].set(0)
+            psi_matrix = psi_matrix.at[-1, self.n_order//2:].set(0)
+
+
+
+            self.w_psi = w_psi
+            self.psi_matrix = psi_matrix * w_psi
+            self.root_psi = root_psi
+
+        self.support = support
+
 
     def project(self, f_quad):
         return vmap_integrate_f_test_functions(f_quad, self.psi_matrix)

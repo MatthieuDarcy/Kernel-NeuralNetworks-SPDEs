@@ -75,6 +75,51 @@ def theta_blocks(boundary,psi_matrix, root_psi, length_scale, epsilon, b_root):
     theta_22 = vmap_bilinear_form_K(psi_matrix, psi_matrix, root_psi, root_psi, length_scale, epsilon, b_root, b_root)
     return theta_11, theta_21, theta_22
 
+def block_matrix_vmap_bilinear_form_K(m, psi_matrix, root_psi, length_scale, epsilon, b_root):
+    N, d = psi_matrix.shape
+    chunk_size = (N + m - 1) // m  # Calculate chunk size to create m chunks
+
+    blocks = [[None for _ in range(m)] for _ in range(m)]  # Placeholder for block matrix
+
+    for i in range(m):
+        start_idx_i = i * chunk_size
+        end_idx_i = min((i + 1) * chunk_size, N)
+
+        chunk_psi_matrix_i = psi_matrix[start_idx_i:end_idx_i]
+        chunk_root_psi_i = root_psi[start_idx_i:end_idx_i]
+        chunk_b_root_i = b_root[start_idx_i:end_idx_i]
+
+        for j in range(m):
+            start_idx_j = j * chunk_size
+            end_idx_j = min((j + 1) * chunk_size, N)
+
+            chunk_psi_matrix_j = psi_matrix[start_idx_j:end_idx_j]
+            chunk_root_psi_j = root_psi[start_idx_j:end_idx_j]
+            chunk_b_root_j = b_root[start_idx_j:end_idx_j]
+
+            result_chunk = vmap_bilinear_form_K(
+                chunk_psi_matrix_i, chunk_psi_matrix_j, 
+                chunk_root_psi_i, chunk_root_psi_j, 
+                length_scale, epsilon, 
+                chunk_b_root_i, chunk_b_root_j
+            )
+            blocks[i][j] = result_chunk
+
+    # Combine the blocks into a single block matrix
+    block_matrix = jnp.block(blocks)
+    return block_matrix
+
+
+def theta_blocks_chunked(boundary,psi_matrix, root_psi, length_scale, epsilon, b_root):
+    theta_11 = vmap_kernel(boundary, boundary, length_scale)
+    theta_21 = jnp.squeeze(vmap_linear_form_K(psi_matrix, boundary, root_psi, length_scale, epsilon, b_root), axis = -1)
+
+    n_meas = psi_matrix.shape[0]
+    k = jnp.log2(n_meas).astype(int)
+    m = k - 10 + 1
+    theta_22 = block_matrix_vmap_bilinear_form_K(m, psi_matrix, root_psi, length_scale, epsilon, b_root)
+    return theta_11, theta_21, theta_22
+
 @jit
 def evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary, epsilon, b_root):
     K_boundary = vmap_kernel(x,boundary, length_scale)

@@ -55,7 +55,15 @@ vmap_L_b_xy = vmap(vmap(L_b_xy, in_axes=(0, None, None, None,0, None)), in_axes 
 ########################################################################################################################
 # This is for the boundary conditions
 def grad_matern_kernel_x(x, y, length_scale):
+    #print(length_scale)
     nabla = grad(matern_kernel, argnums = 0)(x, y, length_scale)
+    nabla = jnp.where(jnp.allclose(x,y), 0, nabla)
+
+    return jnp.squeeze(nabla)
+
+def grad_matern_kernel_y(x, y, length_scale):
+    #print(length_scale)
+    nabla = grad(matern_kernel, argnums = 1)(x, y, length_scale)
     nabla = jnp.where(jnp.allclose(x,y), 0, nabla)
 
     return jnp.squeeze(nabla)
@@ -63,20 +71,21 @@ def grad_matern_kernel_x(x, y, length_scale):
 def double_grad_matern_kernel(x, y, length_scale):
     nabla = grad(grad_matern_kernel_x, argnums = 1)(x, y, length_scale)
     nu = 5/2
-    nabla = jnp.where(jnp.allclose(x,y), -2*nu/(2*(1-nu)*length_scale), nabla)
+    nabla = jnp.where(jnp.allclose(x,y), -2*nu/(2*(1-nu)*length_scale**2), nabla)
 
     return nabla
 
 vmap_boundary = vmap(vmap(double_grad_matern_kernel, in_axes = (0, None, None)), in_axes = (None, 0, None))
+vmap_boundary_y = vmap(vmap(grad_matern_kernel_y, in_axes = (0, None, None)), in_axes = (None, 0, None))
 
 # We now mix the boundary and interior domain operators 
 
 def boundary_x_interior_y_kernel(x, y, length_scale, epsilon, b_y):
-    nabla = grad(L_b_y, argnums = 1)(x, y, length_scale, epsilon, b_y)
+    nabla = grad(L_b_y, argnums = 0)(x, y, length_scale, epsilon, b_y)
     nabla = jnp.where(jnp.allclose(x,y),0, nabla)
     return nabla
 
-vmap_boundary_x_interior_y_kernel = vmap(vmap(boundary_x_interior_y_kernel, in_axes = (0, None, None, None, None)), in_axes = (None, 0, None, None, None))
+vmap_boundary_x_interior_y_kernel = vmap(vmap(boundary_x_interior_y_kernel, in_axes = (0, None, None, None, None)), in_axes = (None, 0, None, None, 0))
 
 
 ########################################################################################################################
@@ -84,10 +93,11 @@ vmap_boundary_x_interior_y_kernel = vmap(vmap(boundary_x_interior_y_kernel, in_a
 
 def linear_form_boundary_K(x, p, points, length_scale, epsilon, b_y):
     # Create the kernel matrix 
-    K = vmap_boundary_x_interior_y_kernel(p, points, length_scale, epsilon, b_y)
+    K = jnp.squeeze(vmap_boundary_x_interior_y_kernel(p, points, length_scale, epsilon, b_y))
+    #print(K.shape, x.shape)
     return K@x
 
-vmap_linear_form_boundary_K = jit(vmap(vmap(linear_form_boundary_K, in_axes=(None, 0, None, None, None, None)), in_axes=(0, None, 0, None, None, 0)))
+vmap_linear_form_boundary_K = vmap(vmap(linear_form_boundary_K, in_axes=(None, 0, None, None, None, None)), in_axes=(0, None, 0, None, None, 0))
 
 
 
@@ -116,36 +126,37 @@ vmap_linear_form_K = jit(vmap(vmap(linear_form_K, in_axes=(None, 0, None, None, 
 @jit
 def theta_blocks(boundary,psi_matrix, root_psi, length_scale, epsilon, b_root):
     theta_11 = jnp.squeeze(vmap_boundary(boundary, boundary, length_scale))
-    theta_21 = jnp.squeeze(vmap_linear_form_boundary_K(psi_matrix, boundary, root_psi, length_scale, epsilon, b_root), axis = -1)
+    theta_21 = vmap_linear_form_boundary_K(psi_matrix, boundary, root_psi, length_scale, epsilon, b_root)
     theta_22 = vmap_bilinear_form_K(psi_matrix, psi_matrix, root_psi, root_psi, length_scale, epsilon, b_root, b_root)
     return theta_11, theta_21, theta_22
 
 @jit
 def evaluate_prediction(x, c, length_scale, root_psi, psi_matrix, boundary, epsilon, b_root):
-    K_boundary = vmap_kernel(x,boundary, length_scale)
+    K_boundary = vmap_boundary_y(x,boundary, length_scale).T
     K_interior = jnp.squeeze(vmap_linear_form_K(psi_matrix, x[:, None], root_psi, length_scale, epsilon, b_root), axis = -1).T
-    K_evaluate = jnp.block([[K_boundary, K_interior]])
+
+    K_evaluate = jnp.hstack([K_boundary, K_interior])
 
     return K_evaluate@c
 
-vmap_evaluate_prediction = jit(vmap(evaluate_prediction, in_axes=(0, None, None, None, None, None, None, None)))
+# vmap_evaluate_prediction = jit(vmap(evaluate_prediction, in_axes=(0, None, None, None, None, None, None, None)))
 
-def build_K_psi(x, length_scale, root_psi, psi_matrix, boundary, epsilon, b_root):
-    K_boundary = vmap_kernel(x,boundary, length_scale)
-    K_interior = jnp.squeeze(vmap_linear_form_K(psi_matrix, x[:, None], root_psi, length_scale, epsilon, b_root), axis = -1).T
-    K_evaluate = jnp.block([[K_boundary, K_interior]])
+# def build_K_psi(x, length_scale, root_psi, psi_matrix, boundary, epsilon, b_root):
+#     K_boundary = vmap_kernel(x,boundary, length_scale)
+#     K_interior = jnp.squeeze(vmap_linear_form_K(psi_matrix, x[:, None], root_psi, length_scale, epsilon, b_root), axis = -1).T
+#     K_evaluate = jnp.block([[K_boundary, K_interior]])
 
-    return K_evaluate
-vmap_K_psi = jit(vmap(build_K_psi, in_axes=(0, None, None, None, None, None, None)))
+#     return K_evaluate
+# vmap_K_psi = jit(vmap(build_K_psi, in_axes=(0, None, None, None, None, None, None)))
 
-def build_K_eval(x, length_scale, root_psi, psi_matrix, boundary, epsilon, b_root):
-    K_boundary = vmap_kernel(x,boundary, length_scale)
-    K_interior = jnp.squeeze(vmap_linear_form_K(psi_matrix, x[:, None], root_psi, length_scale, epsilon, b_root), axis = -1).T
-    K_evaluate = jnp.block([[K_boundary, K_interior]])
+# def build_K_eval(x, length_scale, root_psi, psi_matrix, boundary, epsilon, b_root):
+#     K_boundary = vmap_kernel(x,boundary, length_scale)
+#     K_interior = jnp.squeeze(vmap_linear_form_K(psi_matrix, x[:, None], root_psi, length_scale, epsilon, b_root), axis = -1).T
+#     K_evaluate = jnp.block([[K_boundary, K_interior]])
 
-    return K_evaluate
+#     return K_evaluate
 
-vmap_K_eval = jit(vmap(build_K_eval, in_axes=(0, None, None, None, None, None, None)))
+# vmap_K_eval = jit(vmap(build_K_eval, in_axes=(0, None, None, None, None, None, None)))
 
 
 

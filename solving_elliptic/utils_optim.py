@@ -4,7 +4,7 @@ from jax import vmap
 from jax import jit
 
 from utils_rough_pde import vmap_integrate_f_test_functions
-from utils_elliptic_coef import vmap_bilinear_form_K, vmap_linear_form_K, theta_blocks, evaluate_prediction, vmap_evaluate_prediction
+from utils_elliptic_coef import vmap_bilinear_form_K, vmap_linear_form_K, theta_blocks, evaluate_prediction, vmap_evaluate_prediction, theta_blocks_chunked
 from utils_rough_pde import compute_error
 from utils_elliptic_coef import vmap_K_psi, build_K_eval, vmap_K_eval
 
@@ -156,12 +156,22 @@ class kernel_linear_solver():
         self.boundary = boundary
 
         self.nu = nu
+        self.n_meas = psi_matrix.shape[0]
 
     def solve_linear_prob(self, rhs_meas, reg, root_b, L_stiff):
         self.root_b = root_b
 
         # Construct the matrices
-        theta_11, theta_21, theta_22 = theta_blocks(self.boundary,self.psi_matrix, self.root_psi, self.length_scale, self.nu, root_b)
+        if self.n_meas > 2048:
+            print(f"Too many measurements. Falling back to batched approach.")
+            theta_11, theta_21, theta_22 = theta_blocks_chunked(self.boundary,self.psi_matrix, self.root_psi, self.length_scale, self.nu, root_b)
+        else:
+            try:
+                theta_11, theta_21, theta_22 = theta_blocks(self.boundary,self.psi_matrix, self.root_psi, self.length_scale, self.nu, root_b)
+            except Exception as e:
+                print(f"vmap failed with error: {e}. Falling back to batched approach.")
+                theta_11, theta_21, theta_22 = theta_blocks_chunked(self.boundary,self.psi_matrix, self.root_psi, self.length_scale, self.nu, root_b)
+        
         theta_12 = theta_21.T
         K = jnp.block([[theta_11, theta_12], [theta_21, theta_22]])
         K_interior = jnp.vstack([theta_12, theta_22]).T
