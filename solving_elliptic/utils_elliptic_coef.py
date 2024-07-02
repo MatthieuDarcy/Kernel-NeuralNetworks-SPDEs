@@ -58,14 +58,16 @@ def bilinear_form_K(x, y, points_1, points_2, length_scale, epsilon, b_1, b_2):
     K = vmap_L_b_xy(points_1, points_2, length_scale, epsilon, b_1, b_2)
     return jnp.dot(x, K @ y)
 
-vmap_bilinear_form_K = jit(vmap(vmap(bilinear_form_K,  in_axes=(None, 0, None, 0, None, None, 0, None)), in_axes=(0, None, 0, None, None, None, None, 0)))
+#vmap_bilinear_form_K = jit(vmap(vmap(bilinear_form_K,  in_axes=(None, 0, None, 0, None, None, 0, None)), in_axes=(0, None, 0, None, None, None, None, 0)))
+vmap_bilinear_form_K = jit(vmap(vmap(bilinear_form_K,  in_axes=(None, None, None, 0, None, None, 0, None)), in_axes=(None, None, 0, None, None, None, None, 0)))
 
 def linear_form_K(x, p, points, length_scale, epsilon, b_y):
     # Create the kernel matrix 
     K = vmap_L_b_y(p, points, length_scale, epsilon, b_y)
     return K@x
 
-vmap_linear_form_K = jit(vmap(vmap(linear_form_K, in_axes=(None, 0, None, None, None, None)), in_axes=(0, None, 0, None, None, 0)))
+#vmap_linear_form_K = jit(vmap(vmap(linear_form_K, in_axes=(None, 0, None, None, None, None)), in_axes=(0, None, 0, None, None, 0)))
+vmap_linear_form_K = jit(vmap(vmap(linear_form_K, in_axes=(None, 0, None, None, None, None)), in_axes=(None, None, 0, None, None, 0)))
 
 # Define a function that constructs the various blocks of the matrix
 @jit

@@ -60,7 +60,7 @@ def gradient_tent_function(x, epsilon, center):
 
 vmap_tent = vmap(tent_function, in_axes=(None, None, 0))
 vmap_tent_vector = vmap(tent_function, in_axes=(0, None, 0))
-vmap_tent_evaluate= vmap(vmap_tent, in_axes=(0, None, None))
+vmap_tent_evaluate= jit(vmap(vmap_tent, in_axes=(0, None, None)))
 
 def evaluate_tent(c, x, epsilon, center):
     return vmap_tent_evaluate(x, epsilon, center)@c

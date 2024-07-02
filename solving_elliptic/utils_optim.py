@@ -8,8 +8,9 @@ from utils_elliptic_coef import vmap_bilinear_form_K, vmap_linear_form_K, theta_
 from utils_rough_pde import compute_error
 from utils_elliptic_coef import vmap_K_psi, build_K_eval, vmap_K_eval
 
-from jax.config import config
-config.update("jax_enable_x64", True)
+
+from pdb import set_trace as bp
+
 
 from jax import scipy
 
@@ -186,7 +187,7 @@ class kernel_linear_solver():
             c = solve_qp(K, K_interior, K_bc, L_stiff, rhs_meas, self.boundary_conditions, reg)
         self.c = c
 
-        self.residuals= self.compute_residuals(K_interior, rhs_meas, L_stiff)
+        #self.residuals= self.compute_residuals(K_interior, rhs_meas, L_stiff)
         self.meas = K_interior@c
     
     def build_matrices(self, root_b):
@@ -247,7 +248,8 @@ class kernel_linear_solver():
     
     def create_K_psi(self):
         K_psi = vmap_K_psi(self.root_psi, self.length_scale, self.root_psi, self.psi_matrix, self.boundary, self.nu, self.root_b)
-        K_psi = jnp.sum(K_psi*self.psi_matrix[:, :, None],axis = 1)
+        #bp()
+        K_psi = jnp.sum(K_psi*self.psi_matrix[None :, None],axis = 1)
         self.K_psi = K_psi
 
     
