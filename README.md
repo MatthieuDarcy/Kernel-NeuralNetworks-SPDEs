@@ -1,10 +1,10 @@
-This repository contains notebooks that run the experiments necessary to reproduce the experiments contained in the paper "..."
+This repository contains notebooks that run the experiments necessary to reproduce the experiments presented in the paper "..."
 
 The repository is organized as follows:
 
-1. Rough spatial: experiments section 4.2.
+1. Rough spatial: section 4.2.
 2. Time-dependent: section 4.3.
-3. utils: contains an implementation of the kernel method with Dirichlet boundary conditions.
+3. utils: contains various utilities and implementations for the kernel method.
 4. plotting_templates: templates for the plots in the notebooks.
 
 See the subfolders for greater details. 
