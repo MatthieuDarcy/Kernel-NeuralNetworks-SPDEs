@@ -27,13 +27,52 @@ vmap_compute_sine_coef = jit(vmap(compute_sine_coefficients, in_axes=(0,)))
 
 ################### 2D DST ####################
 
+# @jit
+# def dst_2d(A):
+#     # Receives a 2d array and returns the 2d discrete sine transform
+#     return vmap_dst(vmap_dst(A).T).T
+
+# vmap_dst_2d = jit(vmap(dst_2d, in_axes = 0))#jit(vmap(vmap(dst_2d, in_axes=0, out_axes=0), in_axes=1,out_axes=1))
+# @jit
+# def double_dst_2d(A):
+#     # Transform along the last 2 axes
+#     A = vmap(vmap(dst_2d, in_axes=0, out_axes=0), in_axes=1,out_axes=1)(A)
+#     # Transpose the axes
+#     A = jnp.transpose(A, (2, 3, 0, 1))
+#     # Transform along the last 2 axes
+#     A = vmap(vmap(dst_2d, in_axes=0, out_axes=0), in_axes=1,out_axes=1)(A)
+#     # Transpose the axes (going back to the original order)
+#     A = jnp.transpose(A, (2, 3, 0,1))
+#     return A
+
+# @jit
+# def compute_sine_coef_2d(A):
+#     # Receives a 2d array and returns the 2d discrete sine transform
+#     n = A.shape[0]
+#     return dst_2d(A)/((n+1)**2)
+
+# vmap_compute_sine_coef_2d = jit(vmap(compute_sine_coef_2d, in_axes = 0))
+# @jit
+# def double_compute_sine_coef_2d(A):
+#     # Transform along the last 2 axes
+#     A = vmap(vmap(compute_sine_coef_2d, in_axes=0, out_axes=0), in_axes=1,out_axes=1)(A)
+#     # Transpose the axes
+#     A = jnp.transpose(A, (2, 3, 0, 1))
+#     # Transform along the last 2 axes
+#     A = vmap(vmap(compute_sine_coef_2d, in_axes=0, out_axes=0), in_axes=1,out_axes=1)(A)
+#     # Transpose the axes (going back to the original order)
+#     A = jnp.transpose(A, (2, 3, 0,1))
+#     return A
+
+
+# Update
+
 @jit
 def dst_2d(A):
     # Receives a 2d array and returns the 2d discrete sine transform
     return vmap_dst(vmap_dst(A).T).T
-
-
 vmap_dst_2d = jit(vmap(dst_2d, in_axes = 0))#jit(vmap(vmap(dst_2d, in_axes=0, out_axes=0), in_axes=1,out_axes=1))
+
 @jit
 def double_dst_2d(A):
     # Transform along the last 2 axes
@@ -45,10 +84,6 @@ def double_dst_2d(A):
     # Transpose the axes (going back to the original order)
     A = jnp.transpose(A, (2, 3, 0,1))
     return A
-
-
-
-
 
 @jit
 def compute_sine_coef_2d(A):
