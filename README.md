@@ -11,12 +11,7 @@ See the subfolders for greater details.
 
 Requirements (the version indicated is the one used in the experiments):
 
-python (3.12.3)
-
-jax (0.4.28)
-
-optax (0.2.2)
-
-matplotlib (3.8.4)
-
-tqdm (4.66.4)
+jax==0.4.28
+matplotlib==3.8.0
+scipy==1.15.1
+tqdm==4.65.0
