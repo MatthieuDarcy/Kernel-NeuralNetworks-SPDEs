@@ -1,4 +1,4 @@
-This repository contains notebooks that run the experiments necessary to reproduce the experiments presented in the paper "..."
+This repository contains notebooks that run the experiments necessary to reproduce the experiments presented in the paper "Solving Roughly Forced Nonlinear PDEs via Misspecified Kernel Methods and Neural Networks"
 
 The repository is organized as follows:
 
