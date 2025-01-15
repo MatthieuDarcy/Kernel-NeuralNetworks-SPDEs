@@ -9,9 +9,6 @@ The repository is organized as follows:
 
 See the subfolders for greater details. 
 
-Requirements (the version indicated is the one used in the experiments):
+The requirements indicate the necessary libraries and the version that were used for the numerical experiments.
 
-jax==0.4.28
-matplotlib==3.8.0
-scipy==1.15.1
-tqdm==4.65.0
+Note that when using Jax, both the GPU and CPU versions may be used.
