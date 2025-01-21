@@ -1,4 +1,5 @@
-This repository contains notebooks that run the experiments necessary to reproduce the experiments presented in the paper "..."
+![alt text](https://github.com/MatthieuDarcy/StochasticPDEs/blob/main/figures/SPDE.PNG?raw=true)
+This repository contains notebooks that run the experiments necessary to reproduce the experiments presented in the paper "_Solving Roughly Forced Nonlinear PDEs via Misspecified Kernel Methods and Neural Networks_"
 
 The repository is organized as follows:
 
@@ -11,4 +12,4 @@ See the subfolders for greater details.
 
 The requirements indicate the necessary libraries and the version that were used for the numerical experiments.
 
-Note that when using Jax, both the GPU and CPU versions may be used.
+Note that when using Jax, both the GPU and CPU versions may be used. The CPU version is recommended for time-dependent problems, whereas the GPU version is recommended for the spatial problems.
