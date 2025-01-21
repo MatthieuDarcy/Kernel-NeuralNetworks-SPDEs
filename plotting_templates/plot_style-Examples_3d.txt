@@ -22,7 +22,7 @@ legend.edgecolor: 0.9
 legend.borderpad: 0.2
 legend.columnspacing: 1.5
 legend.labelspacing:  0.4
-text.usetex: True
+#text.usetex: True
 axes.titlelocation: left
 axes.formatter.use_mathtext: True
 axes.labelpad: 3
