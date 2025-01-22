@@ -12,4 +12,4 @@ See the subfolders for greater details.
 
 The requirements indicate the necessary libraries and the version that were used for the numerical experiments.
 
-Note that when using Jax, we have used the GPU version. The CPU version of JAX seems to be problematic with the the convolution operation used for the stochastic heat equation.
+Note that when using Jax, we have used the GPU version. The CPU version of JAX seems to be problematic with the the convolution operation used for the stochastic heat equatio, but seems to work fine with all other examples.
