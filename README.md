@@ -1,5 +1,5 @@
 ![alt text](https://github.com/MatthieuDarcy/StochasticPDEs/blob/main/figures/SPDE.PNG?raw=true)
-This repository contains notebooks that run the experiments necessary to reproduce the experiments presented in the paper "_Solving Roughly Forced Nonlinear PDEs via Misspecified Kernel Methods and Neural Networks_"
+This repository contains notebooks that run the experiments necessary to reproduce the experiments presented in the paper [_Solving Roughly Forced Nonlinear PDEs via Misspecified Kernel Methods and Neural Networks_](https://arxiv.org/abs/2501.17110)
 
 The repository is organized as follows:
 
