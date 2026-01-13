@@ -113,6 +113,14 @@ BM = random.normal(key, (n_coef, time_span.shape[0]-1))
 u_hist = OU_system(time_span[1:], h_spectral, coef_g, beta, sigma, BM).block_until_ready()
 u_values_T = vmap_dst(u_hist.T).block_until_ready()
 
+print(u_values_T.shape)
+
+#%% Save the fine solution
+import pickle
+with open('stochastic_heat_equation_fine_solution.pkl', 'wb') as f:
+    pickle.dump(u_values_T, f)
+    pickle.dump(domain_finest, f)
+    pickle.dump(time_span, f)
 # %%
 coarse_factor = 4 # Coarsen the fine solution by a factor of 4
 h = h_spectral*coarse_factor
