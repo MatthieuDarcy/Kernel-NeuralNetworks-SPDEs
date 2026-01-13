@@ -83,6 +83,24 @@ plt.show()
 def convolve(K, Z):
     return scipy.signal.convolve(K, Z, mode='full')[:Z.shape[0]]
 
+def convolve_manual(K, Z):
+
+
+    N = len(Z)
+    M = len(K)
+
+    y = jnp.zeros(N)
+
+    for n in range(N):
+        acc = 0.0
+        for m in range(M):
+            if n - m >= 0:
+                acc += K[m] * Z[n - m]
+        #print(acc)
+        y = y.at[n].set(acc)
+
+    return y
+
 def OU_explicit(time_span, h, u_init, beta, sigma, BM):
     """
     time span should not contain the time 0.0
@@ -90,7 +108,7 @@ def OU_explicit(time_span, h, u_init, beta, sigma, BM):
 
     # Create the convolution kernel
     K = jnp.exp(-beta*time_span)
-    u = u_init*jnp.exp(-beta*time_span) + sigma*jnp.sqrt(h)*convolve(K, BM)
+    u = u_init*jnp.exp(-beta*time_span) + sigma*jnp.sqrt(h)*convolve_manual(K, BM)
 
     return jnp.hstack([u_init, u])
 
